@@ -1,12 +1,14 @@
-use std::io::Write;
+use std::fs::File;
+use std::ops::{Neg, Add, Sub, Mul, Div};
+use std::io::{Write, BufWriter, Result};
 
 type Value = f64;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Color {
-    r: Value,
-    g: Value,
-    b: Value,
+    pub r: Value,
+    pub g: Value,
+    pub b: Value,
 }
 
 impl Color {
@@ -32,55 +34,68 @@ impl Color {
     pub fn unit_vector(&self) -> Self {
         *self / self.length()
     }
-    pub fn write_to_file(&self, file: &mut std::fs::File) -> std::io::Result<()> {
+    pub fn write_to_writer(&self, writer: &mut BufWriter<File>) -> Result<()> {
         let ir = (255.999 * self.r) as u8;
         let ig = (255.999 * self.g) as u8;
         let ib = (255.999 * self.b) as u8;
 
-        file.write_all(format!("{} {} {}\n", ir, ig, ib).as_bytes())?;
+        writer.write_all(format!("{} {} {}\n", ir, ig, ib).as_bytes())?;
         Ok(())
     }
 }
 
-impl std::ops::Neg for Color {
+impl Neg for Color {
     type Output = Self;
     fn neg(self) -> Self::Output {
         Self::new(-self.r, -self.g, -self.b)
     }
 }
-impl std::ops::Add for Color {
+impl Add for Color {
     type Output = Self;
     fn add(self, rhs: Self) -> Self::Output {
         Self::new(self.r + rhs.r, self.g + rhs.g, self.b + rhs.b)
     }
 }
-impl std::ops::Sub for Color {
+impl Sub for Color {
     type Output = Self;
     fn sub(self, rhs: Self) -> Self::Output {
         Self::new(self.r - rhs.r, self.g - rhs.g, self.b - rhs.b)
     }
 }
-impl std::ops::Mul for Color {
+impl Mul for Color {
     type Output = Self;
     fn mul(self, rhs: Self) -> Self::Output {
         Self::new(self.r * rhs.r, self.g * rhs.g, self.b * rhs.b)
     }
 }
-impl std::ops::Mul<Value> for Color {
+impl Mul<Value> for Color {
     type Output = Self;
     fn mul(self, rhs: Value) -> Self::Output {
         Self::new(self.r * rhs, self.g * rhs, self.b * rhs)
     }
 }
-impl std::ops::Div for Color {
+impl Mul<Color> for Value {
+    type Output = Color;
+    fn mul(self, rhs: Color) -> Self::Output {
+        Self::Output::new(rhs.r * self, rhs.g * self, rhs.b * self)
+    }
+}
+impl Div for Color {
     type Output = Self;
     fn div(self, rhs: Self) -> Self::Output {
         Self::new(self.r / rhs.r, self.g / rhs.g, self.b / rhs.b)
     }
 }
-impl std::ops::Div<Value> for Color {
+impl Div<Value> for Color {
     type Output = Self;
     fn div(self, rhs: Value) -> Self::Output {
         Self::new(self.r / rhs, self.g / rhs, self.b / rhs)
+    }
+}
+
+impl Div<Color> for Value {
+    type Output = Color;
+    fn div(self, rhs: Color) -> Self::Output {
+        Self::Output::new(rhs.r / self, rhs.g / self, rhs.b / self)
     }
 }
