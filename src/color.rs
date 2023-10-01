@@ -1,6 +1,8 @@
 use std::fs::File;
-use std::ops::{Neg, Add, Sub, Mul, Div};
-use std::io::{Write, BufWriter, Result};
+use std::io::{BufWriter, Result, Write};
+use std::ops::{Add, Div, Mul, Neg, Sub};
+
+use crate::vec3::Vec3;
 
 type Value = f64;
 
@@ -14,6 +16,15 @@ pub struct Color {
 impl Color {
     pub fn new(r: Value, g: Value, b: Value) -> Self {
         Self { r, g, b }
+    }
+    pub fn gray(value: Value) -> Self {
+        Self::new(value, value, value)
+    }
+    pub fn white() -> Self {
+        Self::new(1., 1., 1.)
+    }
+    pub fn black() -> Self {
+        Self::new(0., 0., 0.)
     }
     pub fn dot(&self, rhs: &Self) -> Value {
         self.r * rhs.r + self.g * rhs.g + self.b * rhs.b
@@ -44,58 +55,44 @@ impl Color {
     }
 }
 
+impl From<Vec3> for Color {
+    fn from(value: Vec3) -> Self {
+        Self::new(value.x, value.y, value.z)
+    }
+}
+
 impl Neg for Color {
     type Output = Self;
     fn neg(self) -> Self::Output {
         Self::new(-self.r, -self.g, -self.b)
     }
 }
-impl Add for Color {
-    type Output = Self;
-    fn add(self, rhs: Self) -> Self::Output {
-        Self::new(self.r + rhs.r, self.g + rhs.g, self.b + rhs.b)
-    }
-}
-impl Sub for Color {
-    type Output = Self;
-    fn sub(self, rhs: Self) -> Self::Output {
-        Self::new(self.r - rhs.r, self.g - rhs.g, self.b - rhs.b)
-    }
-}
-impl Mul for Color {
-    type Output = Self;
-    fn mul(self, rhs: Self) -> Self::Output {
-        Self::new(self.r * rhs.r, self.g * rhs.g, self.b * rhs.b)
-    }
-}
-impl Mul<Value> for Color {
-    type Output = Self;
-    fn mul(self, rhs: Value) -> Self::Output {
-        Self::new(self.r * rhs, self.g * rhs, self.b * rhs)
-    }
-}
-impl Mul<Color> for Value {
-    type Output = Color;
-    fn mul(self, rhs: Color) -> Self::Output {
-        Self::Output::new(rhs.r * self, rhs.g * self, rhs.b * self)
-    }
-}
-impl Div for Color {
-    type Output = Self;
-    fn div(self, rhs: Self) -> Self::Output {
-        Self::new(self.r / rhs.r, self.g / rhs.g, self.b / rhs.b)
-    }
-}
-impl Div<Value> for Color {
-    type Output = Self;
-    fn div(self, rhs: Value) -> Self::Output {
-        Self::new(self.r / rhs, self.g / rhs, self.b / rhs)
-    }
+macro_rules! impl_color_ops {
+    ($trait:ident, $op:ident, $type:ty) => {
+        impl $trait for $type {
+            type Output = Self;
+            fn $op(self, rhs: Self) -> Self::Output {
+                Self::new(self.r.$op(rhs.r), self.g.$op(rhs.g), self.b.$op(rhs.b))
+            }
+        }
+
+        impl $trait<Value> for $type {
+            type Output = Self;
+            fn $op(self, rhs: Value) -> Self::Output {
+                Self::new(self.r.$op(rhs), self.g.$op(rhs), self.b.$op(rhs))
+            }
+        }
+
+        impl $trait<$type> for Value {
+            type Output = $type;
+            fn $op(self, rhs: $type) -> Self::Output {
+                Self::Output::new(rhs.r.$op(self), rhs.g.$op(self), rhs.b.$op(self))
+            }
+        }
+    };
 }
 
-impl Div<Color> for Value {
-    type Output = Color;
-    fn div(self, rhs: Color) -> Self::Output {
-        Self::Output::new(rhs.r / self, rhs.g / self, rhs.b / self)
-    }
-}
+impl_color_ops!(Add, add, Color);
+impl_color_ops!(Sub, sub, Color);
+impl_color_ops!(Mul, mul, Color);
+impl_color_ops!(Div, div, Color);
