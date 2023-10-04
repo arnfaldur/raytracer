@@ -11,6 +11,7 @@ use crate::vec3::Vec3;
 mod color;
 mod ray;
 mod vec3;
+mod hittable;
 
 const ASPECT_RATIO: f64 = 16.0 / 10.0;
 
@@ -77,14 +78,14 @@ fn write_buffer_to_file(image_buffer: &Vec<Color>) -> std::io::Result<()> {
 
 fn hit_sphere(center: Point3, radius: f64, ray: &Ray) -> f64 {
     let sphere_to_ray = ray.origin - center;
-    let squared_raydir_magnitude = ray.direction.dot(&ray.direction);
-    let alignment = 2. * sphere_to_ray.dot(&ray.direction);
-    let surface_dist = sphere_to_ray.dot(&sphere_to_ray) - radius.powi(2);
-    let discriminant = alignment.powi(2) - 4. * squared_raydir_magnitude * surface_dist;
+    let squared_raydir_magnitude = ray.direction.length_squared();
+    let alignment = sphere_to_ray.dot(&ray.direction);
+    let surface_dist = sphere_to_ray.length_squared() - radius.powi(2);
+    let discriminant = alignment.powi(2) - squared_raydir_magnitude * surface_dist;
     return if discriminant < 0. {
         -1.
     } else {
-        (-alignment - discriminant.sqrt()) / 2.*squared_raydir_magnitude
+        (-alignment - discriminant.sqrt()) / squared_raydir_magnitude
     };
 }
 
