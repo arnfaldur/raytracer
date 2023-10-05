@@ -1,6 +1,4 @@
-use crate::{color::Color, vec3::Vec3};
-
-pub type Point3 = Vec3;
+use crate::{color::Color, vec3::{Vec3, Point3}};
 
 pub struct Ray {
     pub origin: Point3,

@@ -4,18 +4,21 @@ use std::fs::File;
 use std::io::{BufWriter, Write};
 use std::time::Instant;
 
+use hittable::Hittable;
+
 use crate::color::Color;
-use crate::ray::{Point3, Ray};
-use crate::vec3::Vec3;
+use crate::hittable::{HittableList, Sphere};
+use crate::ray::Ray;
+use crate::vec3::{Point3, Vec3};
 
 mod color;
+mod hittable;
 mod ray;
 mod vec3;
-mod hittable;
 
 const ASPECT_RATIO: f64 = 16.0 / 10.0;
 
-const IMAGE_WIDTH: usize = 800;
+const IMAGE_WIDTH: usize = 500;
 const IMAGE_HEIGHT: usize = (IMAGE_WIDTH as f64 / ASPECT_RATIO) as usize;
 const PIXEL_COUNT: usize = IMAGE_WIDTH * IMAGE_HEIGHT;
 const ACTUAL_RATIO: f64 = IMAGE_WIDTH as f64 / IMAGE_HEIGHT as f64;
@@ -38,22 +41,30 @@ fn main() -> std::io::Result<()> {
         camera_center - Vec3::new(0., 0., focal_length) - viewport_u / 2. - viewport_v / 2.;
     let pixel00_loc = viewport_upper_left + 0.5 * (pixel_delta_u + pixel_delta_v);
 
+    let mut world = Box::new(HittableList::default());
+
+    world.add(Box::new(Sphere::new(Point3::new(0.,0.,-1.), 0.5)));
+    world.add(Box::new(Sphere::new(Point3::new(0., -100.5, -1.), 100.)));
+
+    let world = world as Box<dyn Hittable>;
+
     let mut image_buffer = Vec::with_capacity(PIXEL_COUNT);
 
-    let mut dragger = 0.0;
+    let mut dragger = 0;
     for j in 0..IMAGE_HEIGHT {
-        for i in 0..IMAGE_WIDTH {
-            let nth_pixel = j * IMAGE_WIDTH + i;
+        let nth_pixel = j * IMAGE_WIDTH;
+        let boi = start_time.elapsed().as_millis();
+        if boi - dragger > 5 {
             let progress = nth_pixel as f64 / (PIXEL_COUNT - 1) as f64;
-            if progress - dragger > 0.1 {
-                dragger = progress;
-                println!("{:.2}%", progress * 100.0);
-            }
+            dragger = boi;
+            println!("{:.2}%", progress * 100.0);
+        }
+        for i in 0..IMAGE_WIDTH {
             let pixel_center =
                 pixel00_loc + (i as f64 * pixel_delta_u) + (j as f64 * pixel_delta_v);
             let ray_direction = pixel_center - camera_center;
             let ray = Ray::new(camera_center, ray_direction);
-            let color = ray_color(&ray);
+            let color = ray_color(&ray, &world);
 
             image_buffer.push(color);
         }
@@ -76,25 +87,10 @@ fn write_buffer_to_file(image_buffer: &Vec<Color>) -> std::io::Result<()> {
     Ok(())
 }
 
-fn hit_sphere(center: Point3, radius: f64, ray: &Ray) -> f64 {
-    let sphere_to_ray = ray.origin - center;
-    let squared_raydir_magnitude = ray.direction.length_squared();
-    let alignment = sphere_to_ray.dot(&ray.direction);
-    let surface_dist = sphere_to_ray.length_squared() - radius.powi(2);
-    let discriminant = alignment.powi(2) - squared_raydir_magnitude * surface_dist;
-    return if discriminant < 0. {
-        -1.
-    } else {
-        (-alignment - discriminant.sqrt()) / squared_raydir_magnitude
-    };
-}
-
-fn ray_color(ray: &Ray) -> Color {
+fn ray_color(ray: &Ray, world: &Box<dyn Hittable>) -> Color {
     let center = Point3::new(0., 0., -1.);
-    let t = hit_sphere(center, 0.5, ray);
-    if t > 0. {
-        let normalized = (ray.at(t) - center).unit_vector();
-        return Color::from(normalized+1.)/2.;
+    if let Some(hit_record) = world.hit(ray, 0.0..f64::INFINITY) {
+        return Color::from(hit_record.normal + 1.) / 2.;
     }
     let unit_direction = ray.direction.unit_vector();
     let a = 0.5 * (unit_direction.y + 1.0);

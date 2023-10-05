@@ -1,17 +1,19 @@
+use std::ops::Range;
+
 use crate::{
-    ray::{Point3, Ray},
-    vec3::Vec3,
+    ray::Ray,
+    vec3::{Point3, Vec3},
 };
 
-trait Hittable {
-    fn hit(&self, ray: Ray, ray_tmin: f64, ray_tmax: f64, rec: &HitRecord) -> Option<HitRecord>;
+pub trait Hittable {
+    fn hit(&self, ray: &Ray, ray_trange: Range<f64>) -> Option<HitRecord>;
 }
 
-struct HitRecord {
-    point: Point3,
-    normal: Vec3,
-    t: f64,
-    front_face: bool,
+pub struct HitRecord {
+    pub point: Point3,
+    pub normal: Vec3,
+    pub t: f64,
+    pub front_face: bool,
 }
 
 impl HitRecord {
@@ -25,12 +27,17 @@ impl HitRecord {
     }
 }
 
-struct Sphere {
+pub struct Sphere {
     center: Point3,
     radius: f64,
 }
+impl Sphere {
+    pub fn new(center: Point3, radius: f64) -> Self {
+        Self { center, radius }
+    }
+}
 impl Hittable for Sphere {
-    fn hit(&self, ray: Ray, ray_tmin: f64, ray_tmax: f64, rec: &HitRecord) -> Option<HitRecord> {
+    fn hit(&self, ray: &Ray, ray_trange: Range<f64>) -> Option<HitRecord> {
         let sphere_to_ray = ray.origin - self.center;
         let squared_raydir_magnitude = ray.direction.length_squared();
         let alignment = sphere_to_ray.dot(&ray.direction);
@@ -45,9 +52,9 @@ impl Hittable for Sphere {
 
         let mut root = (-alignment - sqrtd) / squared_raydir_magnitude;
 
-        if (root <= ray_tmin || ray_tmax <= root) {
+        if !ray_trange.contains(&root) {
             root = (-alignment + sqrtd) / squared_raydir_magnitude;
-            if (root <= ray_tmin || ray_tmax <= root) {
+            if (!ray_trange.contains(&root)) {
                 return None;
             }
         }
@@ -62,5 +69,33 @@ impl Hittable for Sphere {
             t: root,
             front_face,
         });
+    }
+}
+
+#[derive(Default)]
+pub struct HittableList {
+    objects: Vec<Box<dyn Hittable>>,
+}
+
+impl HittableList {
+    pub fn add(&mut self, object: Box<dyn Hittable>) {
+        self.objects.push(object);
+    }
+}
+
+impl Hittable for HittableList {
+    fn hit(&self, ray: &Ray, ray_trange: Range<f64>) -> Option<HitRecord> {
+        let mut hit_anything = false;
+        let mut closest_so_far = ray_trange.end;
+        let mut result = None;
+
+        for object in self.objects.iter() {
+            if let Some(hit_record) = object.hit(ray, ray_trange.start..closest_so_far) {
+                hit_anything = true;
+                closest_so_far = hit_record.t;
+                result = Some(hit_record);
+            }
+        }
+        return result;
     }
 }

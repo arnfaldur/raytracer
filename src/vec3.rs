@@ -2,6 +2,7 @@ use std::ops::{Neg, Add, Sub, Mul, Div};
 
 use crate::color::Color;
 
+pub type Point3 = Vec3;
 
 type Value = f64;
 
@@ -15,6 +16,9 @@ pub struct Vec3 {
 impl Vec3 {
     pub fn new(x: Value, y: Value, z: Value) -> Self {
         Self { x, y, z }
+    }
+    pub fn zero() -> Self {
+        Self::new(0.,0.,0.)
     }
     pub fn dot(&self, rhs: &Self) -> Value {
         self.x * rhs.x + self.y * rhs.y + self.z * rhs.z
