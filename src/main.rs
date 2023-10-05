@@ -15,6 +15,8 @@ mod color;
 mod hittable;
 mod ray;
 mod vec3;
+mod range;
+mod camera;
 
 const ASPECT_RATIO: f64 = 16.0 / 10.0;
 

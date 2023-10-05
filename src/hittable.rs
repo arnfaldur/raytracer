@@ -1,6 +1,7 @@
 use std::ops::Range;
 
 use crate::{
+    range::Membership,
     ray::Ray,
     vec3::{Point3, Vec3},
 };
@@ -52,9 +53,9 @@ impl Hittable for Sphere {
 
         let mut root = (-alignment - sqrtd) / squared_raydir_magnitude;
 
-        if !ray_trange.contains(&root) {
+        if !ray_trange.inclusive(root) {
             root = (-alignment + sqrtd) / squared_raydir_magnitude;
-            if (!ray_trange.contains(&root)) {
+            if (!ray_trange.inclusive(root)) {
                 return None;
             }
         }
@@ -88,6 +89,7 @@ impl Hittable for HittableList {
         let mut hit_anything = false;
         let mut closest_so_far = ray_trange.end;
         let mut result = None;
+        let boi = 0.0..=1.0;
 
         for object in self.objects.iter() {
             if let Some(hit_record) = object.hit(ray, ray_trange.start..closest_so_far) {
