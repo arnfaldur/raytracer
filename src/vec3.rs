@@ -1,4 +1,4 @@
-use std::ops::{Neg, Add, Sub, Mul, Div};
+use std::ops::{Add, Div, Mul, Neg, Sub};
 
 use crate::color::Color;
 
@@ -18,7 +18,7 @@ impl Vec3 {
         Self { x, y, z }
     }
     pub fn zero() -> Self {
-        Self::new(0.,0.,0.)
+        Self::new(0., 0., 0.)
     }
     pub fn dot(&self, rhs: &Self) -> Value {
         self.x * rhs.x + self.y * rhs.y + self.z * rhs.z
@@ -53,7 +53,6 @@ impl Neg for Vec3 {
         Self::new(-self.x, -self.y, -self.z)
     }
 }
-
 
 macro_rules! impl_vec3_ops {
     ($trait:ident, $op:ident, $type:ty) => {
