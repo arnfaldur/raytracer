@@ -1,6 +1,6 @@
 use std::fs::File;
 use std::io::{BufWriter, Result, Write};
-use std::ops::{Add, Div, Mul, Neg, Sub};
+use std::ops::{Add, AddAssign, Div, Mul, Neg, Sub};
 
 use crate::vec3::Vec3;
 
@@ -46,9 +46,9 @@ impl Color {
         *self / self.length()
     }
     pub fn write_to_writer(&self, writer: &mut BufWriter<File>) -> Result<()> {
-        let ir = (255.999 * self.r) as u8;
-        let ig = (255.999 * self.g) as u8;
-        let ib = (255.999 * self.b) as u8;
+        let ir = (256_f64.next_down() * self.r) as u8;
+        let ig = (256_f64.next_down() * self.g) as u8;
+        let ib = (256_f64.next_down() * self.b) as u8;
 
         writer.write_all(format!("{} {} {}\n", ir, ig, ib).as_bytes())?;
         Ok(())
@@ -68,31 +68,37 @@ impl Neg for Color {
     }
 }
 macro_rules! impl_color_ops {
-    ($trait:ident, $op:ident, $type:ty) => {
-        impl $trait for $type {
+    ($trait:ident, $op:ident) => {
+        impl $trait for Color {
             type Output = Self;
             fn $op(self, rhs: Self) -> Self::Output {
                 Self::new(self.r.$op(rhs.r), self.g.$op(rhs.g), self.b.$op(rhs.b))
             }
         }
 
-        impl $trait<Value> for $type {
+        impl $trait<Value> for Color {
             type Output = Self;
             fn $op(self, rhs: Value) -> Self::Output {
                 Self::new(self.r.$op(rhs), self.g.$op(rhs), self.b.$op(rhs))
             }
         }
 
-        impl $trait<$type> for Value {
-            type Output = $type;
-            fn $op(self, rhs: $type) -> Self::Output {
+        impl $trait<Color> for Value {
+            type Output = Color;
+            fn $op(self, rhs: Color) -> Self::Output {
                 Self::Output::new(rhs.r.$op(self), rhs.g.$op(self), rhs.b.$op(self))
             }
         }
     };
 }
 
-impl_color_ops!(Add, add, Color);
-impl_color_ops!(Sub, sub, Color);
-impl_color_ops!(Mul, mul, Color);
-impl_color_ops!(Div, div, Color);
+impl_color_ops!(Add, add);
+impl_color_ops!(Sub, sub);
+impl_color_ops!(Mul, mul);
+impl_color_ops!(Div, div);
+
+impl AddAssign for Color {
+    fn add_assign(&mut self, rhs: Self) {
+        *self = self.add(rhs);
+    }
+}
