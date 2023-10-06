@@ -53,9 +53,9 @@ impl Hittable for Sphere {
 
         let mut root = (-alignment - sqrtd) / squared_raydir_magnitude;
 
-        if !ray_trange.inclusive(root) {
+        if !ray_trange.exclusive(root) {
             root = (-alignment + sqrtd) / squared_raydir_magnitude;
-            if (!ray_trange.inclusive(root)) {
+            if (!ray_trange.exclusive(root)) {
                 return None;
             }
         }

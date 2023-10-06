@@ -1,4 +1,7 @@
-use std::ops::{Add, Div, Mul, Neg, Sub};
+use std::{
+    fmt::Debug,
+    ops::{Add, Div, Mul, Neg, Range, Sub},
+};
 
 use crate::color::Color;
 
@@ -6,7 +9,7 @@ pub type Point3 = Vec3;
 
 type Value = f64;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct Vec3 {
     pub x: Value,
     pub y: Value,
@@ -19,6 +22,31 @@ impl Vec3 {
     }
     pub fn zero() -> Self {
         Self::new(0., 0., 0.)
+    }
+    pub fn random() -> Self {
+        Self::new(fastrand::f64(), fastrand::f64(), fastrand::f64())
+    }
+    pub fn random_range(range: Range<Value>) -> Self {
+        Self::random() * (range.end - range.start) + range.start
+    }
+    pub fn random_in_unit_sphere() -> Self {
+        loop {
+            let candidate = Self::random_range(-1.0..1.0);
+            if candidate.length_squared() < 1.0 {
+                return candidate;
+            }
+        }
+    }
+    pub fn random_on_unit_sphere() -> Self {
+        Self::random_in_unit_sphere().normalized()
+    }
+    pub fn random_on_hemisphere(normal: &Vec3) -> Self {
+        let random = Self::random_on_unit_sphere();
+        if random.dot(normal) > 0.0 {
+            random
+        } else {
+            -random
+        }
     }
     pub fn dot(&self, rhs: &Self) -> Value {
         self.x * rhs.x + self.y * rhs.y + self.z * rhs.z
@@ -37,6 +65,9 @@ impl Vec3 {
         self.length_squared().sqrt()
     }
     pub fn unit_vector(&self) -> Self {
+        *self / self.length()
+    }
+    pub fn normalized(&self) -> Self {
         *self / self.length()
     }
 }
@@ -73,7 +104,7 @@ macro_rules! impl_vec3_ops {
         impl $trait<$type> for Value {
             type Output = $type;
             fn $op(self, rhs: $type) -> Self::Output {
-                Self::Output::new(rhs.x.$op(self), rhs.y.$op(self), rhs.z.$op(self))
+                Self::Output::new(self.$op(rhs.x), self.$op(rhs.y), self.$op(rhs.z))
             }
         }
     };
@@ -83,3 +114,21 @@ impl_vec3_ops!(Add, add, Vec3);
 impl_vec3_ops!(Sub, sub, Vec3);
 impl_vec3_ops!(Mul, mul, Vec3);
 impl_vec3_ops!(Div, div, Vec3);
+
+impl Debug for Vec3 {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Vec3(")?;
+        write!(f, "{:.3}, ", &self.x)?;
+        write!(f, "{:.3}, ", &self.y)?;
+        write!(f, "{:.3}", &self.z)?;
+        write!(f, ")")
+
+        // f.debug_tuple("Vec3")
+        //     .field(&format_args!("{:.3}", &self.x))
+        //     .field(&format_args!("{:.3}", &self.y))
+        //     .field(&format_args!("{:.3}", &self.z))
+        //     // .field(&self.y)
+        //     // .field(&self.z)
+        //     .finish()
+    }
+}
