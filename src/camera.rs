@@ -31,35 +31,25 @@ impl CameraBuilder {
             depth: None,
         }
     }
-    pub fn aspect_ratio(self, aspect_ratio: f64) -> Self {
-        Self {
-            aspect_ratio: Some(aspect_ratio),
-            ..self
-        }
+    pub fn aspect_ratio(mut self, aspect_ratio: f64) -> Self {
+        self.aspect_ratio = Some(aspect_ratio);
+        self
     }
-    pub fn image_width(self, image_width: usize) -> Self {
-        Self {
-            image_width: Some(image_width),
-            ..self
-        }
+    pub fn image_width(mut self, image_width: usize) -> Self {
+        self.image_width = Some(image_width);
+        self
     }
-    pub fn uniform_sampler(self, samples_per_pixel: usize) -> Self {
-        Self {
-            pixel_sampler: Some(PixelSampler::Uniform(samples_per_pixel)),
-            ..self
-        }
+    pub fn uniform_sampler(mut self, samples_per_pixel: usize) -> Self {
+        self.pixel_sampler = Some(PixelSampler::Uniform(samples_per_pixel));
+        self
     }
-    pub fn random_sampler(self, samples_per_pixel: usize) -> Self {
-        Self {
-            pixel_sampler: Some(PixelSampler::Random(samples_per_pixel)),
-            ..self
-        }
+    pub fn random_sampler(mut self, samples_per_pixel: usize) -> Self {
+        self.pixel_sampler = Some(PixelSampler::Random(samples_per_pixel));
+        self
     }
-    pub fn depth(self, depth: usize) -> Self {
-        Self {
-            depth: Some(depth),
-            ..self
-        }
+    pub fn depth(mut self, depth: usize) -> Self {
+        self.depth = Some(depth);
+        self
     }
     pub fn build(self) -> Camera {
         let aspect_ratio = self.aspect_ratio.expect("The aspect ratio must be set");
@@ -141,7 +131,9 @@ impl Camera {
             for i in 0..self.image_width {
                 let color = self.sample_pixel(j, i, world);
 
-                image_buffer.push(color);
+                let gamma_corrected = color.gamma_corrected(2.2);
+
+                image_buffer.push(gamma_corrected);
             }
         }
         self.write_buffer_to_file(&image_buffer).unwrap();

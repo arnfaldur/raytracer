@@ -1,4 +1,4 @@
-use std::{ops::Range, sync::Arc};
+use std::{ops::{Range, Neg}, sync::Arc};
 
 use crate::{
     color::Color,
@@ -37,7 +37,11 @@ pub struct Sphere {
 }
 impl Sphere {
     pub fn new(center: Point3, radius: f64, material: Arc<dyn Material>) -> Self {
-        Self { center, radius, material }
+        Self {
+            center,
+            radius,
+            material,
+        }
     }
 }
 impl Hittable for Sphere {
@@ -129,18 +133,75 @@ impl Material for Lambertian {
 
 impl From<Color> for Lambertian {
     fn from(value: Color) -> Self {
-        Self {
-            albedo: value
-        }
+        Self { albedo: value }
     }
 }
 
-pub struct Metal;
+pub struct Metal {
+    albedo: Color,
+    fuzz: f64,
+}
+
+impl Metal {
+    pub fn new(albedo: Color, fuzz: f64) -> Self {
+        Self { albedo, fuzz }
+    }
+}
 
 impl Material for Metal {
     fn scatter(&self, ray: &Ray, hit_record: &HitRecord) -> Option<(Color, Ray)> {
-        let scatter_direction = ray.direction.normalized() + hit_record.normal*2.0;
+        let reflected = ray.direction.reflect(&hit_record.normal);
+        let scatter_direction = reflected + self.fuzz * Vec3::random_on_unit_sphere();
         let scattered_ray = Ray::new(hit_record.point, scatter_direction);
-        return Some((Color::white(), scattered_ray))
+        return Some((self.albedo, scattered_ray));
     }
+}
+
+impl From<Color> for Metal {
+    fn from(value: Color) -> Self {
+        Self::new(value, 0.)
+    }
+}
+
+pub struct Dielectric {
+    index_of_refraction: f64,
+}
+
+impl Dielectric {
+    pub fn new(index_of_refraction: f64) -> Self {
+        Self { index_of_refraction }
+    }
+}
+
+impl Material for Dielectric {
+    fn scatter(&self, ray: &Ray, hit_record: &HitRecord) -> Option<(Color, Ray)> {
+        let refraction_ratio = if hit_record.front_face {
+            1.0 / self.index_of_refraction
+        } else {
+            self.index_of_refraction
+        };
+
+        let unit_direction = ray.direction.unit_vector();
+        let cos_theta = (-unit_direction).dot(&hit_record.normal).min(1.0);
+        let sin_theta = (1.0 - cos_theta.powi(2)).sqrt();
+
+        let cannot_refract = refraction_ratio * sin_theta > 1.0;
+
+        let direction = if cannot_refract {
+            unit_direction.reflect(&hit_record.normal)
+        } else {
+            refract(&unit_direction, &hit_record.normal, refraction_ratio)
+        };
+
+        let scattered = Ray::new(hit_record.point, direction);
+
+        return Some((Color::white(), scattered));
+    }
+}
+
+fn refract(uv: &Vec3, n: &Vec3, etai_over_etat: f64) -> Vec3 {
+    let cos_theta = (-(*uv)).dot(n).min(1.0);
+    let r_out_perp = etai_over_etat * (*uv + cos_theta * *n);
+    let r_out_parallel = (1.0 - r_out_perp.length_squared()).abs().sqrt().neg() * *n;
+    return r_out_perp + r_out_parallel;
 }

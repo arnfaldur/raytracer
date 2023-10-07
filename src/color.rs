@@ -45,6 +45,10 @@ impl Color {
     pub fn unit_vector(&self) -> Self {
         *self / self.length()
     }
+    pub fn gamma_corrected(&self, gamma: Value) -> Self {
+        let correct = |val: f64| val.powf(1.0 / gamma);
+        Self::new(correct(self.r), correct(self.g), correct(self.b))
+    }
     pub fn write_to_writer(&self, writer: &mut BufWriter<File>) -> Result<()> {
         let ir = (256_f64.next_down() * self.r) as u8;
         let ig = (256_f64.next_down() * self.g) as u8;

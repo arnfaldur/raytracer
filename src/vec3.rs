@@ -48,6 +48,9 @@ impl Vec3 {
             -random
         }
     }
+    pub fn reflect(&self, normal: &Vec3) -> Vec3 {
+        *self - 2.0 * (*self).dot(normal) * *normal
+    }
     pub fn dot(&self, rhs: &Self) -> Value {
         self.x * rhs.x + self.y * rhs.y + self.z * rhs.z
     }

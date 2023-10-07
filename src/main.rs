@@ -6,7 +6,7 @@ use std::time::Instant;
 
 use crate::camera::{Camera, CameraBuilder};
 use crate::color::Color;
-use crate::hittable::{HittableList, Lambertian, Sphere, Metal};
+use crate::hittable::{HittableList, Lambertian, Metal, Sphere, Dielectric};
 use crate::ray::Ray;
 use crate::vec3::{Point3, Vec3};
 use hittable::Hittable;
@@ -27,6 +27,7 @@ fn main() -> std::io::Result<()> {
         .aspect_ratio(16.0 / 9.0)
         // .aspect_ratio(1.0)
         .image_width(900)
+        //.image_width(3840)
         .uniform_sampler(4_usize.pow(2))
         .depth(10)
         // .random_sampler(1)
@@ -38,30 +39,40 @@ fn main() -> std::io::Result<()> {
     world.add(Box::new(Sphere::new(
         Point3::new(0., -40_000_000.5, -1.),
         40_000_000.,
-        Arc::new(Lambertian::from(Color::new(0.2, 0.5, 0.3))),
+        Arc::new(Lambertian::from(Color::new(0.05, 0.20, 0.07))),
     )));
 
     // // Ballz
     world.add(Box::new(Sphere::new(
         Point3::new(0., 0., -2.),
         0.5,
-        Arc::new(Lambertian::from(Color::new(0.7, 0.3, 0.3))),
+        Arc::new(Lambertian::from(Color::new(0.8, 0.1, 0.1))),
     )));
     world.add(Box::new(Sphere::new(
         Point3::new(1.8, 0., -3.7),
         0.5,
-        Arc::new(Lambertian::from(Color::new(0.7, 0.3, 0.3))),
+        Arc::new(Lambertian::from(Color::new(0.1, 0.1, 0.8))),
     )));
     world.add(Box::new(Sphere::new(
         Point3::new(-1.6, 0., -2.7),
         0.5,
-        Arc::new(Metal),
+        Arc::new(Dielectric::new(1.5)),
     )));
     world.add(Box::new(Sphere::new(
         Point3::new(-0.6, 1., -2.7),
         0.5,
-        Arc::new(Metal),
+        Arc::new(Dielectric::new(1.5)),
     )));
+    // world.add(Box::new(Sphere::new(
+    //     Point3::new(-1.6, 0., -2.7),
+    //     0.5,
+    //     Arc::new(Metal::new(Color::gray(0.7), 0.3)),
+    // )));
+    // world.add(Box::new(Sphere::new(
+    //     Point3::new(-0.6, 1., -2.7),
+    //     0.5,
+    //     Arc::new(Metal::new(Color::gray(0.8), 1.0)),
+    // )));
 
     let world = world as Box<dyn Hittable>;
 
