@@ -1,6 +1,7 @@
-use std::ops::Range;
+use std::{ops::Range, sync::Arc};
 
 use crate::{
+    color::Color,
     range::Membership,
     ray::Ray,
     vec3::{Point3, Vec3},
@@ -13,8 +14,9 @@ pub trait Hittable {
 pub struct HitRecord {
     pub point: Point3,
     pub normal: Vec3,
-    pub t: f64,
+    pub material: Arc<dyn Material>,
     pub front_face: bool,
+    pub t: f64,
 }
 
 impl HitRecord {
@@ -31,10 +33,11 @@ impl HitRecord {
 pub struct Sphere {
     center: Point3,
     radius: f64,
+    material: Arc<dyn Material>,
 }
 impl Sphere {
-    pub fn new(center: Point3, radius: f64) -> Self {
-        Self { center, radius }
+    pub fn new(center: Point3, radius: f64, material: Arc<dyn Material>) -> Self {
+        Self { center, radius, material }
     }
 }
 impl Hittable for Sphere {
@@ -67,6 +70,7 @@ impl Hittable for Sphere {
         return Some(HitRecord {
             point: intersection_point,
             normal: if front_face { 1. } else { -1. } * outward_normal,
+            material: self.material.clone(),
             t: root,
             front_face,
         });
@@ -99,5 +103,44 @@ impl Hittable for HittableList {
             }
         }
         return result;
+    }
+}
+
+pub struct Lambertian {
+    albedo: Color,
+}
+
+pub trait Material {
+    fn scatter(&self, ray: &Ray, hit_record: &HitRecord) -> Option<(Color, Ray)>;
+}
+
+impl Material for Lambertian {
+    fn scatter(&self, ray: &Ray, hit_record: &HitRecord) -> Option<(Color, Ray)> {
+        let scatter_direction = hit_record.normal + Vec3::random_on_unit_sphere();
+        let scatter_direction = if scatter_direction.near_zero() {
+            hit_record.normal
+        } else {
+            scatter_direction
+        };
+        let scattered_ray = Ray::new(hit_record.point, scatter_direction);
+        return Some((self.albedo, scattered_ray));
+    }
+}
+
+impl From<Color> for Lambertian {
+    fn from(value: Color) -> Self {
+        Self {
+            albedo: value
+        }
+    }
+}
+
+pub struct Metal;
+
+impl Material for Metal {
+    fn scatter(&self, ray: &Ray, hit_record: &HitRecord) -> Option<(Color, Ray)> {
+        let scatter_direction = ray.direction.normalized() + hit_record.normal*2.0;
+        let scattered_ray = Ray::new(hit_record.point, scatter_direction);
+        return Some((Color::white(), scattered_ray))
     }
 }

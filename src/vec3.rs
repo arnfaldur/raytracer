@@ -70,6 +70,10 @@ impl Vec3 {
     pub fn normalized(&self) -> Self {
         *self / self.length()
     }
+    pub fn near_zero(&self) -> bool {
+        let threshold = 1e-9;
+        self.x.abs() < threshold && self.y.abs() < threshold && self.z.abs() < threshold
+    }
 }
 
 impl From<Color> for Vec3 {

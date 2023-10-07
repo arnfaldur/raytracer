@@ -84,7 +84,7 @@ impl CameraBuilder {
         let center = Point3::zero();
 
         let focal_length = 1.0;
-        let viewport_height = 2.0;
+        let viewport_height = 1.0;
         let viewport_width = viewport_height * image_width as f64 / image_height as f64;
 
         let viewport_u = Vec3::new(viewport_width, 0., 0.);
@@ -183,15 +183,21 @@ impl Camera {
         self.ray_color(&ray, world)
     }
     fn ray_color(&self, ray: &Ray, world: &Box<dyn Hittable>) -> Color {
-        fn ray_color_inner(depth: usize, limit: usize, ray: &Ray, world: &Box<dyn Hittable>) -> Color {
+        fn ray_color_inner(
+            depth: usize,
+            limit: usize,
+            ray: &Ray,
+            world: &Box<dyn Hittable>,
+        ) -> Color {
             if depth >= limit {
                 return Color::black();
             }
             if let Some(hit_record) = world.hit(ray, 0.000001..f64::INFINITY) {
-                let bounce_direction = Vec3::random_on_hemisphere(&hit_record.normal);
-                let new_ray = Ray::new(hit_record.point, bounce_direction);
-                return 0.5 * ray_color_inner(depth + 1, limit, &(new_ray), world);
-                //return Color::from(hit_record.normal + 1.) / 2.;
+                if let Some((attenuation, scattered)) =
+                    hit_record.material.scatter(ray, &hit_record)
+                {
+                    return attenuation * ray_color_inner(depth + 1, limit, &scattered, world);
+                }
             }
             let unit_direction = ray.direction.unit_vector();
             let a = 0.5 * (unit_direction.y + 1.0);
