@@ -22,6 +22,9 @@ pub struct CameraBuilder {
     pixel_sampler: Option<PixelSampler>,
     depth: Option<usize>,
     field_of_view: Option<f64>,
+    lookfrom: Option<Point3>,
+    lookat: Option<Point3>,
+    up_vector: Option<Vec3>,
 }
 
 impl CameraBuilder {
@@ -32,6 +35,9 @@ impl CameraBuilder {
             pixel_sampler: None,
             depth: None,
             field_of_view: None,
+            lookfrom: None,
+            lookat: None,
+            up_vector: None,
         }
     }
     pub fn aspect_ratio(mut self, aspect_ratio: f64) -> Self {
@@ -58,6 +64,18 @@ impl CameraBuilder {
         self.field_of_view = Some(field_of_view);
         self
     }
+    pub fn lookfrom(mut self, lookfrom: Point3) -> Self {
+        self.lookfrom = Some(lookfrom);
+        self
+    }
+    pub fn lookat(mut self, lookat: Point3) -> Self {
+        self.lookat = Some(lookat);
+        self
+    }
+    pub fn up_vector(mut self, up_vector: Vec3) -> Self {
+        self.up_vector = Some(up_vector);
+        self
+    }
     pub fn build(self) -> Camera {
         let aspect_ratio = self.aspect_ratio.expect("The aspect ratio must be set");
         let image_width = self.image_width.expect("The image width must be set");
@@ -75,38 +93,53 @@ impl CameraBuilder {
             PixelSampler::Random(samples_per_pixel) => PixelSampler::Random(samples_per_pixel),
         };
         let depth = self.depth.expect("The depth must be set");
+
         let field_of_view = self.field_of_view.unwrap_or(90.0);
+        let lookfrom = self.lookfrom.unwrap_or(Point3::new(0., 0., 0.));
+        let lookat = self.lookat.unwrap_or(Point3::new(0., 0., -1.));
+        let up_vector = self.up_vector.unwrap_or(Vec3::new(0., 1., 0.));
 
         let image_height = ((image_width as f64 / aspect_ratio) as usize).max(1);
 
-        let center = Point3::zero();
+        let center = lookfrom;
 
-        let focal_length = 1.0;
+        let focal_length = (lookfrom - lookat).length();
         let theta = field_of_view.to_radians();
         let h = (theta / 2.0).tan();
-        let viewport_height = 2.0;
+        let viewport_height = 2.0 * h * focal_length;
         let viewport_width = viewport_height * image_width as f64 / image_height as f64;
 
-        let viewport_u = Vec3::new(viewport_width, 0., 0.);
-        let viewport_v = Vec3::new(0., -viewport_height, 0.);
+        let w = (lookfrom - lookat).unit_vector();
+        let u = up_vector.cross(&w).unit_vector();
+        let v = w.cross(&u);
+
+        let viewport_u = (viewport_width * u);
+        let viewport_v = viewport_height * -v;
 
         let pixel_delta_u = viewport_u / image_width as f64;
         let pixel_delta_v = viewport_v / image_height as f64;
 
-        let viewport_upper_left =
-            center - Vec3::new(0., 0., focal_length) - viewport_u / 2. - viewport_v / 2.;
+        let viewport_upper_left = center - (focal_length * w) - viewport_u / 2. - viewport_v / 2.;
         let pixel00_loc = viewport_upper_left + 0.5 * (pixel_delta_u + pixel_delta_v);
         Camera {
             aspect_ratio,
             image_width,
             pixel_sampler,
             depth,
+
             field_of_view,
+            lookfrom,
+            lookat,
+            up_vector,
+
             image_height,
             center,
             pixel00_loc,
             pixel_delta_u,
             pixel_delta_v,
+            w,
+            u,
+            v,
         }
     }
 }
@@ -115,13 +148,20 @@ pub struct Camera {
     image_width: usize,
     pixel_sampler: PixelSampler,
     depth: usize,
+
     field_of_view: f64,
+    lookfrom: Point3,
+    lookat: Point3,
+    up_vector: Vec3,
 
     image_height: usize,
     center: Point3,
     pixel00_loc: Point3,
     pixel_delta_u: Vec3,
     pixel_delta_v: Vec3,
+    u: Vec3,
+    v: Vec3,
+    w: Vec3,
 }
 
 impl Camera {

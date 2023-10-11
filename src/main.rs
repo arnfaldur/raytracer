@@ -6,7 +6,7 @@ use std::time::Instant;
 
 use crate::camera::{Camera, CameraBuilder};
 use crate::color::Color;
-use crate::hittable::{HittableList, Lambertian, Metal, Sphere, Dielectric};
+use crate::hittable::{Dielectric, HittableList, Lambertian, Metal, Sphere};
 use crate::ray::Ray;
 use crate::vec3::{Point3, Vec3};
 use hittable::Hittable;
@@ -14,9 +14,9 @@ use hittable::Hittable;
 mod camera;
 mod color;
 mod hittable;
+mod random;
 mod range;
 mod ray;
-mod random;
 mod vec3;
 
 fn main() -> std::io::Result<()> {
@@ -26,14 +26,17 @@ fn main() -> std::io::Result<()> {
         .aspect_ratio(16.0 / 9.0)
         // .aspect_ratio(1.0)
         .image_width(900)
-        .field_of_view(90.0)
+        .field_of_view(20.0)
         //.image_width(3840)
         .uniform_sampler(4_usize.pow(2))
-        .depth(50)
+        .depth(20)
         //.random_sampler(4_usize.pow(2))
+        .lookfrom(Point3::new(-2.0, 2.0, 1.0))
+        .lookat(Point3::new(0.0, 0.0, -1.0))
+        .up_vector(Vec3::new(0.0, 1.0, 0.0))
         .build();
 
-    let world = fov_test();
+    let world = ordered();
 
     let world = world as Box<dyn Hittable>;
 
@@ -42,6 +45,21 @@ fn main() -> std::io::Result<()> {
     let elapsed = start_time.elapsed().as_secs_f64();
     println!("Done in {:.3} seconds", elapsed);
     Ok(())
+}
+
+fn ordered() -> Box<HittableList> {
+    let mut world = Box::new(HittableList::default());
+    let mat_ground = Arc::new(Lambertian::from(Color::new(0.8, 0.8, 0.0)));
+    let mat_center = Arc::new(Lambertian::from(Color::new(0.1, 0.2, 0.5)));
+    let mat_left = Arc::new(Dielectric::new(1.5));
+    let mat_right = Arc::new(Metal::new(Color::new(0.8, 0.6, 0.2), 0.0));
+
+    world.add(Box::new(Sphere::new(Point3::new(0.0, -100.5, -1.), 100.0, mat_ground)));
+    world.add(Box::new(Sphere::new(Point3::new(0.0, 0.0, -1.), 0.5, mat_center)));
+    world.add(Box::new(Sphere::new(Point3::new(-1.0, 0.0, -1.), 0.5, mat_left.clone())));
+    world.add(Box::new(Sphere::new(Point3::new(-1.0, 0.0, -1.), -0.4, mat_left.clone())));
+    world.add(Box::new(Sphere::new(Point3::new(1.0, 0.0, -1.), 0.5, mat_right)));
+    return world;
 }
 
 fn fov_test() -> Box<HittableList> {
@@ -81,12 +99,12 @@ fn composition() -> Box<HittableList> {
         Arc::new(Lambertian::from(Color::new(0.1, 0.1, 0.8))),
     )));
     world.add(Box::new(Sphere::new(
-        Point3::new(-0.25-0.125, -0.25, -1.5),
+        Point3::new(-0.25 - 0.125, -0.25, -1.5),
         0.25,
         Arc::new(Dielectric::new(1.5)),
     )));
     world.add(Box::new(Sphere::new(
-        Point3::new(-0.25-0.125, -0.25, -1.5),
+        Point3::new(-0.25 - 0.125, -0.25, -1.5),
         -0.1,
         Arc::new(Dielectric::new(1.5)),
     )));
