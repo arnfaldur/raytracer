@@ -193,7 +193,7 @@ impl Material for Dielectric {
 
         let cannot_refract = refraction_ratio * sin_theta > 1.0;
 
-        let direction = if cannot_refract {
+        let direction = if cannot_refract || reflectance(cos_theta, refraction_ratio) > rng.next_f64() {
             unit_direction.reflect(&hit_record.normal)
         } else {
             refract(&unit_direction, &hit_record.normal, refraction_ratio)
@@ -210,4 +210,9 @@ fn refract(uv: &Vec3, n: &Vec3, etai_over_etat: f64) -> Vec3 {
     let r_out_perp = etai_over_etat * (*uv + cos_theta * *n);
     let r_out_parallel = (1.0 - r_out_perp.length_squared()).abs().sqrt().neg() * *n;
     return r_out_perp + r_out_parallel;
+}
+
+fn reflectance(cosine: f64, ref_idx: f64) -> f64 {
+    let r0 = ((1.0 - ref_idx) / (1.0 + ref_idx)).powi(2);
+    return r0 + (1.0 - r0) * (1.0 - cosine).powi(5);
 }

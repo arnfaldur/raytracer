@@ -53,8 +53,8 @@ fn main() -> std::io::Result<()> {
         Arc::new(Lambertian::from(Color::new(0.1, 0.1, 0.8))),
     )));
     world.add(Box::new(Sphere::new(
-        Point3::new(-1.6, 0., -2.7),
-        0.5,
+        Point3::new(-0.25-0.125, -0.25, -1.5),
+        0.25,
         Arc::new(Dielectric::new(1.5)),
     )));
     world.add(Box::new(Sphere::new(
@@ -62,11 +62,11 @@ fn main() -> std::io::Result<()> {
         0.5,
         Arc::new(Dielectric::new(1.5)),
     )));
-    // world.add(Box::new(Sphere::new(
-    //     Point3::new(-1.6, 0., -2.7),
-    //     0.5,
-    //     Arc::new(Metal::new(Color::gray(0.7), 0.3)),
-    // )));
+    world.add(Box::new(Sphere::new(
+        Point3::new(-1.0, 0., -2.0),
+        0.5,
+        Arc::new(Metal::new(Color::gray(0.7), 0.3)),
+    )));
     // world.add(Box::new(Sphere::new(
     //     Point3::new(-0.6, 1., -2.7),
     //     0.5,
