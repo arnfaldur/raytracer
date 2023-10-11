@@ -3,6 +3,7 @@ use std::fs::File;
 use std::io::{BufWriter, Write};
 use std::time::Instant;
 
+use crate::random::Rng;
 use crate::{
     color::Color,
     hittable::Hittable,
@@ -119,6 +120,8 @@ impl Camera {
         let pixel_count = self.image_width * self.image_height;
         let mut image_buffer = Vec::with_capacity(pixel_count);
 
+        let mut rng = Rng::from_seed([123, 123]);
+
         let mut threshold = 0;
         for j in 0..self.image_height {
             let nth_pixel = j * self.image_width;
@@ -129,7 +132,8 @@ impl Camera {
                 println!("{:.2}%", progress * 100.0);
             }
             for i in 0..self.image_width {
-                let color = self.sample_pixel(j, i, world);
+                rng.short_jump();
+                let color = self.sample_pixel(&mut rng, j, i, world);
 
                 let gamma_corrected = color.gamma_corrected(2.2);
 
@@ -138,7 +142,7 @@ impl Camera {
         }
         self.write_buffer_to_file(&image_buffer).unwrap();
     }
-    fn sample_pixel(&self, j: usize, i: usize, world: &Box<dyn Hittable>) -> Color {
+    fn sample_pixel(&self, rng: &mut Rng, j: usize, i: usize, world: &Box<dyn Hittable>) -> Color {
         let mut accumulator = Color::black();
 
         match self.pixel_sampler {
@@ -151,31 +155,32 @@ impl Camera {
                         let dy = j as f64 + yi as f64 * subpixel_interval - subpixel_offset;
                         let dx = i as f64 + xi as f64 * subpixel_interval - subpixel_offset;
 
-                        accumulator += self.sample_at(dx, dy, world);
+                        accumulator += self.sample_at(rng, dx, dy, world);
                     }
                 }
                 accumulator / samples_sqrt.pow(2) as f64
             }
             PixelSampler::Random(samples) => {
                 for _ in 0..samples {
-                    let dy = j as f64 + fastrand::f64() - 0.5;
-                    let dx = i as f64 + fastrand::f64() - 0.5;
+                    let dy = j as f64 + rng.next_f64() - 0.5;
+                    let dx = i as f64 + rng.next_f64() - 0.5;
 
-                    accumulator += self.sample_at(dx, dy, world);
+                    accumulator += self.sample_at(rng, dx, dy, world);
                 }
                 accumulator / samples as f64
             }
         }
     }
 
-    fn sample_at(&self, dx: f64, dy: f64, world: &Box<dyn Hittable>) -> Color {
+    fn sample_at(&self, rng: &mut Rng, dx: f64, dy: f64, world: &Box<dyn Hittable>) -> Color {
         let pixel_center = self.pixel00_loc + (dx * self.pixel_delta_u) + (dy * self.pixel_delta_v);
         let ray_direction = pixel_center - self.center;
         let ray = Ray::new(self.center, ray_direction);
-        self.ray_color(&ray, world)
+        self.ray_color(rng, &ray, world)
     }
-    fn ray_color(&self, ray: &Ray, world: &Box<dyn Hittable>) -> Color {
+    fn ray_color(&self, rng: &mut Rng, ray: &Ray, world: &Box<dyn Hittable>) -> Color {
         fn ray_color_inner(
+            rng: &mut Rng,
             depth: usize,
             limit: usize,
             ray: &Ray,
@@ -186,16 +191,16 @@ impl Camera {
             }
             if let Some(hit_record) = world.hit(ray, 0.000001..f64::INFINITY) {
                 if let Some((attenuation, scattered)) =
-                    hit_record.material.scatter(ray, &hit_record)
+                    hit_record.material.scatter(rng, ray, &hit_record)
                 {
-                    return attenuation * ray_color_inner(depth + 1, limit, &scattered, world);
+                    return attenuation * ray_color_inner(rng, depth + 1, limit, &scattered, world);
                 }
             }
             let unit_direction = ray.direction.unit_vector();
             let a = 0.5 * (unit_direction.y + 1.0);
             return (1. - a) * Color::new(1., 1., 1.) + a * Color::new(0.5, 0.7, 1.);
         }
-        return ray_color_inner(0, self.depth, ray, world);
+        return ray_color_inner(rng, 0, self.depth, ray, world);
     }
     // I would prefer this not be a method of the camera class but it's own thing
     fn write_buffer_to_file(&self, image_buffer: &Vec<Color>) -> std::io::Result<()> {

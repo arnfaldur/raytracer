@@ -1,7 +1,11 @@
-use std::{ops::{Range, Neg}, sync::Arc};
+use std::{
+    ops::{Neg, Range},
+    sync::Arc,
+};
 
 use crate::{
     color::Color,
+    random::Rng,
     range::Membership,
     ray::Ray,
     vec3::{Point3, Vec3},
@@ -115,12 +119,12 @@ pub struct Lambertian {
 }
 
 pub trait Material {
-    fn scatter(&self, ray: &Ray, hit_record: &HitRecord) -> Option<(Color, Ray)>;
+    fn scatter(&self, rng: &mut Rng, ray: &Ray, hit_record: &HitRecord) -> Option<(Color, Ray)>;
 }
 
 impl Material for Lambertian {
-    fn scatter(&self, ray: &Ray, hit_record: &HitRecord) -> Option<(Color, Ray)> {
-        let scatter_direction = hit_record.normal + Vec3::random_on_unit_sphere();
+    fn scatter(&self, rng: &mut Rng, ray: &Ray, hit_record: &HitRecord) -> Option<(Color, Ray)> {
+        let scatter_direction = hit_record.normal + Vec3::random_on_unit_sphere(rng);
         let scatter_direction = if scatter_direction.near_zero() {
             hit_record.normal
         } else {
@@ -149,9 +153,9 @@ impl Metal {
 }
 
 impl Material for Metal {
-    fn scatter(&self, ray: &Ray, hit_record: &HitRecord) -> Option<(Color, Ray)> {
+    fn scatter(&self, rng: &mut Rng, ray: &Ray, hit_record: &HitRecord) -> Option<(Color, Ray)> {
         let reflected = ray.direction.reflect(&hit_record.normal);
-        let scatter_direction = reflected + self.fuzz * Vec3::random_on_unit_sphere();
+        let scatter_direction = reflected + self.fuzz * Vec3::random_on_unit_sphere(rng);
         let scattered_ray = Ray::new(hit_record.point, scatter_direction);
         return Some((self.albedo, scattered_ray));
     }
@@ -169,12 +173,14 @@ pub struct Dielectric {
 
 impl Dielectric {
     pub fn new(index_of_refraction: f64) -> Self {
-        Self { index_of_refraction }
+        Self {
+            index_of_refraction,
+        }
     }
 }
 
 impl Material for Dielectric {
-    fn scatter(&self, ray: &Ray, hit_record: &HitRecord) -> Option<(Color, Ray)> {
+    fn scatter(&self, rng: &mut Rng, ray: &Ray, hit_record: &HitRecord) -> Option<(Color, Ray)> {
         let refraction_ratio = if hit_record.front_face {
             1.0 / self.index_of_refraction
         } else {

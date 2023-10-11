@@ -3,7 +3,7 @@ use std::{
     ops::{Add, Div, Mul, Neg, Range, Sub},
 };
 
-use crate::color::Color;
+use crate::{color::Color, random::Rng};
 
 pub type Point3 = Vec3;
 
@@ -23,25 +23,25 @@ impl Vec3 {
     pub fn zero() -> Self {
         Self::new(0., 0., 0.)
     }
-    pub fn random() -> Self {
-        Self::new(fastrand::f64(), fastrand::f64(), fastrand::f64())
+    pub fn random(rng: &mut Rng) -> Self {
+        Self::new(rng.next_f64(), rng.next_f64(), rng.next_f64())
     }
-    pub fn random_range(range: Range<Value>) -> Self {
-        Self::random() * (range.end - range.start) + range.start
+    pub fn random_range(rng: &mut Rng, range: Range<Value>) -> Self {
+        Self::random(rng) * (range.end - range.start) + range.start
     }
-    pub fn random_in_unit_sphere() -> Self {
+    pub fn random_in_unit_sphere(rng: &mut Rng) -> Self {
         loop {
-            let candidate = Self::random_range(-1.0..1.0);
+            let candidate = Self::random_range(rng, -1.0..1.0);
             if candidate.length_squared() < 1.0 {
                 return candidate;
             }
         }
     }
-    pub fn random_on_unit_sphere() -> Self {
-        Self::random_in_unit_sphere().normalized()
+    pub fn random_on_unit_sphere(rng: &mut Rng) -> Self {
+        Self::random_in_unit_sphere(rng).normalized()
     }
-    pub fn random_on_hemisphere(normal: &Vec3) -> Self {
-        let random = Self::random_on_unit_sphere();
+    pub fn random_on_hemisphere(rng: &mut Rng, normal: &Vec3) -> Self {
+        let random = Self::random_on_unit_sphere(rng);
         if random.dot(normal) > 0.0 {
             random
         } else {

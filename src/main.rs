@@ -16,12 +16,11 @@ mod color;
 mod hittable;
 mod range;
 mod ray;
+mod random;
 mod vec3;
 
 fn main() -> std::io::Result<()> {
     let start_time = Instant::now();
-
-    fastrand::seed(123);
 
     let camera = CameraBuilder::new()
         .aspect_ratio(16.0 / 9.0)
@@ -30,7 +29,7 @@ fn main() -> std::io::Result<()> {
         //.image_width(3840)
         .uniform_sampler(4_usize.pow(2))
         .depth(10)
-        // .random_sampler(1)
+        //.random_sampler(4_usize.pow(2))
         .build();
 
     let mut world = Box::new(HittableList::default());

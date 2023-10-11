@@ -7,4 +7,3 @@ edition = "2021"
 opt-level = 1
 
 [dependencies]
-fastrand = "2.0.1"
