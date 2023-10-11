@@ -21,6 +21,7 @@ pub struct CameraBuilder {
     image_width: Option<usize>,
     pixel_sampler: Option<PixelSampler>,
     depth: Option<usize>,
+    field_of_view: Option<f64>,
 }
 
 impl CameraBuilder {
@@ -30,6 +31,7 @@ impl CameraBuilder {
             image_width: None,
             pixel_sampler: None,
             depth: None,
+            field_of_view: None,
         }
     }
     pub fn aspect_ratio(mut self, aspect_ratio: f64) -> Self {
@@ -52,6 +54,10 @@ impl CameraBuilder {
         self.depth = Some(depth);
         self
     }
+    pub fn field_of_view(mut self, field_of_view: f64) -> Self {
+        self.field_of_view = Some(field_of_view);
+        self
+    }
     pub fn build(self) -> Camera {
         let aspect_ratio = self.aspect_ratio.expect("The aspect ratio must be set");
         let image_width = self.image_width.expect("The image width must be set");
@@ -69,13 +75,16 @@ impl CameraBuilder {
             PixelSampler::Random(samples_per_pixel) => PixelSampler::Random(samples_per_pixel),
         };
         let depth = self.depth.expect("The depth must be set");
+        let field_of_view = self.field_of_view.unwrap_or(90.0);
 
         let image_height = ((image_width as f64 / aspect_ratio) as usize).max(1);
 
         let center = Point3::zero();
 
         let focal_length = 1.0;
-        let viewport_height = 1.0;
+        let theta = field_of_view.to_radians();
+        let h = (theta / 2.0).tan();
+        let viewport_height = 2.0;
         let viewport_width = viewport_height * image_width as f64 / image_height as f64;
 
         let viewport_u = Vec3::new(viewport_width, 0., 0.);
@@ -92,6 +101,7 @@ impl CameraBuilder {
             image_width,
             pixel_sampler,
             depth,
+            field_of_view,
             image_height,
             center,
             pixel00_loc,
@@ -105,6 +115,7 @@ pub struct Camera {
     image_width: usize,
     pixel_sampler: PixelSampler,
     depth: usize,
+    field_of_view: f64,
 
     image_height: usize,
     center: Point3,

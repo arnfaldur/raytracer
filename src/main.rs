@@ -26,12 +26,40 @@ fn main() -> std::io::Result<()> {
         .aspect_ratio(16.0 / 9.0)
         // .aspect_ratio(1.0)
         .image_width(900)
+        .field_of_view(90.0)
         //.image_width(3840)
         .uniform_sampler(4_usize.pow(2))
-        .depth(10)
+        .depth(50)
         //.random_sampler(4_usize.pow(2))
         .build();
 
+    let world = fov_test();
+
+    let world = world as Box<dyn Hittable>;
+
+    camera.render(&world);
+
+    let elapsed = start_time.elapsed().as_secs_f64();
+    println!("Done in {:.3} seconds", elapsed);
+    Ok(())
+}
+
+fn fov_test() -> Box<HittableList> {
+    let mut world = Box::new(HittableList::default());
+    let r = (std::f64::consts::PI / 4.0).cos();
+    world.add(Box::new(Sphere::new(
+        Point3::new(r, 0., -1.),
+        r,
+        Arc::new(Lambertian::from(Color::new(1.0, 0.0, 0.0))),
+    )));
+    world.add(Box::new(Sphere::new(
+        Point3::new(-r, 0., -1.),
+        r,
+        Arc::new(Lambertian::from(Color::new(0.0, 0.0, 1.0))),
+    )));
+    return world;
+}
+fn composition() -> Box<HittableList> {
     let mut world = Box::new(HittableList::default());
 
     // Ground
@@ -58,6 +86,11 @@ fn main() -> std::io::Result<()> {
         Arc::new(Dielectric::new(1.5)),
     )));
     world.add(Box::new(Sphere::new(
+        Point3::new(-0.25-0.125, -0.25, -1.5),
+        -0.1,
+        Arc::new(Dielectric::new(1.5)),
+    )));
+    world.add(Box::new(Sphere::new(
         Point3::new(-0.6, 1., -2.7),
         0.5,
         Arc::new(Dielectric::new(1.5)),
@@ -67,19 +100,7 @@ fn main() -> std::io::Result<()> {
         0.5,
         Arc::new(Metal::new(Color::gray(0.7), 0.3)),
     )));
-    // world.add(Box::new(Sphere::new(
-    //     Point3::new(-0.6, 1., -2.7),
-    //     0.5,
-    //     Arc::new(Metal::new(Color::gray(0.8), 1.0)),
-    // )));
-
-    let world = world as Box<dyn Hittable>;
-
-    camera.render(&world);
-
-    let elapsed = start_time.elapsed().as_secs_f64();
-    println!("Done in {:.3} seconds", elapsed);
-    Ok(())
+    return world;
 }
 
 fn value_to_color(value: f64) -> Color {
