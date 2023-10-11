@@ -169,7 +169,7 @@ impl Camera {
         let progress_interval = 1000;
         let start_time = Instant::now();
         let pixel_count = self.image_width * self.image_height;
-        let mut image_buffer = Vec::with_capacity(pixel_count);
+        let mut image_buffer = vec![Color::black(); pixel_count];
 
         let mut rng = Rng::from_seed([123, 123]);
 
@@ -188,7 +188,8 @@ impl Camera {
 
                 let gamma_corrected = color.gamma_corrected(2.2);
 
-                image_buffer.push(gamma_corrected);
+                let index = (j * self.image_width) + i;
+                image_buffer[index] = gamma_corrected;
             }
         }
         self.write_buffer_to_file(&image_buffer).unwrap();
