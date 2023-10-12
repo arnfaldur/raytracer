@@ -50,9 +50,9 @@ impl Color {
         Self::new(correct(self.r), correct(self.g), correct(self.b))
     }
     pub fn write_to_writer(&self, writer: &mut BufWriter<File>) -> Result<()> {
-        let ir = (256_f64.next_down() * self.r) as u8;
-        let ig = (256_f64.next_down() * self.g) as u8;
-        let ib = (256_f64.next_down() * self.b) as u8;
+        let ir = (256.0 * self.r) as u8;
+        let ig = (256.0 * self.g) as u8;
+        let ib = (256.0 * self.b) as u8;
 
         writer.write_all(format!("{} {} {}\n", ir, ig, ib).as_bytes())?;
         Ok(())

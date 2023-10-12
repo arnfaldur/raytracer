@@ -1,7 +1,7 @@
-use std::default;
 use std::fs::File;
 use std::io::{BufWriter, Write};
-use std::time::Instant;
+use std::time::{Instant, UNIX_EPOCH};
+use std::{default, thread, time};
 
 use crate::random::Rng;
 use crate::{
@@ -174,25 +174,57 @@ impl Camera {
         let mut rng = Rng::from_seed([123, 123]);
 
         let mut threshold = 0;
-        for j in 0..self.image_height {
-            let nth_pixel = j * self.image_width;
-            let elapsed = start_time.elapsed().as_millis();
-            if elapsed - threshold > progress_interval {
-                let progress = nth_pixel as f64 / (pixel_count - 1) as f64;
-                threshold = elapsed;
-                println!("{:.2}%", progress * 100.0);
-            }
-            for i in 0..self.image_width {
-                rng.short_jump();
-                let color = self.sample_pixel(&mut rng, j, i, world);
+        // for (j, chunk) in image_buffer.chunks_mut(self.image_width).enumerate() {
+        //     let nth_pixel = j * self.image_width;
+        //     let elapsed = start_time.elapsed().as_millis();
+        //     if elapsed - threshold > progress_interval {
+        //         let progress = nth_pixel as f64 / (pixel_count - 1) as f64;
+        //         threshold = elapsed;
+        //         println!("{:.2}%", progress * 100.0);
+        //     }
+        //     self.render_scanline(rng.short_jump().clone(), j, world, chunk);
+        // }
 
-                let gamma_corrected = color.gamma_corrected(2.2);
+        thread::scope(|s| {
+            for (j, chunk) in image_buffer.chunks_mut(self.image_width).enumerate() {
+                let mut rng = Rng::from_seed([
+                    j as u64,
+                    time::SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap()
+                        .as_nanos() as u64,
+                ]);
+                // }
+                // for j in 0..self.image_height {
+                // let nth_pixel = j * self.image_width;
+                // let elapsed = start_time.elapsed().as_millis();
+                // if elapsed - threshold > progress_interval {
+                //     let progress = nth_pixel as f64 / (pixel_count - 1) as f64;
+                //     threshold = elapsed;
+                //     println!("{:.2}%", progress * 100.0);
+                // }
 
-                let index = (j * self.image_width) + i;
-                image_buffer[index] = gamma_corrected;
+                s.spawn(move || self.render_scanline(rng, j, world, chunk));
             }
-        }
+        });
         self.write_buffer_to_file(&image_buffer).unwrap();
+    }
+
+    fn render_scanline(
+        &self,
+        mut rng: Rng,
+        j: usize,
+        world: &Box<dyn Hittable>,
+        image_buffer: &mut [Color],
+    ) {
+        for i in 0..self.image_width {
+            let color = self.sample_pixel(&mut rng, j, i, world);
+
+            let gamma_corrected = color.gamma_corrected(2.2);
+
+            let index = (j * self.image_width) + i;
+            image_buffer[i] = gamma_corrected;
+        }
     }
     fn sample_pixel(&self, rng: &mut Rng, j: usize, i: usize, world: &Box<dyn Hittable>) -> Color {
         let mut accumulator = Color::black();

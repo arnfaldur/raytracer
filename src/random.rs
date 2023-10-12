@@ -1,5 +1,6 @@
 use std::ops::BitXor;
 
+#[derive(Clone)]
 pub struct Rng {
     state: [u64; 2],
 }

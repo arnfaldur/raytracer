@@ -11,7 +11,7 @@ use crate::{
     vec3::{Point3, Vec3},
 };
 
-pub trait Hittable {
+pub trait Hittable: Sync {
     fn hit(&self, ray: &Ray, ray_trange: Range<f64>) -> Option<HitRecord>;
 }
 
@@ -118,7 +118,7 @@ pub struct Lambertian {
     albedo: Color,
 }
 
-pub trait Material {
+pub trait Material: Sync + Send {
     fn scatter(&self, rng: &mut Rng, ray: &Ray, hit_record: &HitRecord) -> Option<(Color, Ray)>;
 }
 
