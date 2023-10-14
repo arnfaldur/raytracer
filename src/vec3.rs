@@ -52,11 +52,12 @@ impl Vec3 {
     }
     pub fn random_on_hemisphere(rng: &mut Rng, normal: &Vec3) -> Self {
         let random = Self::random_on_unit_sphere(rng);
-        if random.dot(normal) > 0.0 {
-            random
-        } else {
-            -random
-        }
+        // if random.dot(normal) > 0.0 {
+        //     random
+        // } else {
+        //     -random
+        // }
+        random.dot(normal).signum() * random
     }
     pub fn reflect(&self, normal: &Vec3) -> Vec3 {
         *self - 2.0 * (*self).dot(normal) * *normal
@@ -86,6 +87,9 @@ impl Vec3 {
     pub fn near_zero(&self) -> bool {
         let threshold = 1e-9;
         self.x.abs() < threshold && self.y.abs() < threshold && self.z.abs() < threshold
+    }
+    pub fn distance(&self, other: &Self) -> f64 {
+        (*self - *other).length()
     }
 }
 

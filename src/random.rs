@@ -6,6 +6,11 @@ pub struct Rng {
 }
 
 impl Rng {
+    pub fn new() -> Self {
+        Self {
+            state: [0x853c49e6748fea9b, 0xda3e39cb94b95bdb],
+        }
+    }
     pub fn from_seed(seed: [u64; 2]) -> Self {
         Self { state: seed }
     }

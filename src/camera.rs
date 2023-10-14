@@ -46,7 +46,6 @@ impl CameraBuilder {
 
             defocus_angle: None,
             focus_distance: None,
-
         }
     }
     pub fn aspect_ratio(mut self, aspect_ratio: f64) -> Self {
@@ -117,7 +116,7 @@ impl CameraBuilder {
         let up_vector = self.up_vector.unwrap_or(Vec3::new(0., 1., 0.));
 
         let defocus_angle = self.defocus_angle.unwrap_or(0.0);
-        let focus_distance = self.focus_distance.unwrap_or(1.0);
+        let focus_distance = self.focus_distance.unwrap_or(lookfrom.distance(&lookat));
 
         // Actual initialization
 
@@ -209,47 +208,26 @@ impl Camera {
         let pixel_count = self.image_width * self.image_height;
         let mut image_buffer = vec![Color::black(); pixel_count];
 
-        let mut rng = Rng::from_seed([123, 123]);
+        let mut rng = Rng::from_seed([123, 128]);
+        let mut rng = rng.short_jump();
 
         let mut threshold = 0;
-        // for (j, chunk) in image_buffer.chunks_mut(self.image_width).enumerate() {
-        //     let nth_pixel = j * self.image_width;
-        //     let elapsed = start_time.elapsed().as_millis();
-        //     if elapsed - threshold > progress_interval {
-        //         let progress = nth_pixel as f64 / (pixel_count - 1) as f64;
-        //         threshold = elapsed;
-        //         println!("{:.2}%", progress * 100.0);
-        //     }
-        //     self.render_scanline(rng.short_jump().clone(), j, world, chunk);
-        // }
 
         let threads = thread::available_parallelism().unwrap();
         let lines_per_thread = self.image_height / (usize::from(threads) * 2);
         thread::scope(|s| {
             for (j, chunk) in image_buffer
                 .chunks_mut(self.image_width * lines_per_thread)
-                .enumerate() {
-                let mut rng = Rng::from_seed([
-                    j as u64,
-                    time::SystemTime::now()
-                        .duration_since(UNIX_EPOCH)
-                        .unwrap()
-                        .as_nanos() as u64,
-                ]);
-                // }
-                // for j in 0..self.image_height {
-                // let nth_pixel = j * self.image_width;
-                // let elapsed = start_time.elapsed().as_millis();
-                // if elapsed - threshold > progress_interval {
-                //     let progress = nth_pixel as f64 / (pixel_count - 1) as f64;
-                //     threshold = elapsed;
-                //     println!("{:.2}%", progress * 100.0);
-                // }
-                //
+                .enumerate()
+            {
+                let inner_rng = rng.clone().short_jump().clone();
+                let inner_rng = rng.clone();
                 let j_offset = j * lines_per_thread;
                 let lines_per_thread = lines_per_thread.min(self.image_height - j_offset);
 
-                s.spawn(move || self.render_scanlines(rng, j_offset, lines_per_thread, world, chunk));
+                s.spawn(move || {
+                    self.render_scanlines(inner_rng, j_offset, lines_per_thread, world, chunk)
+                });
             }
         });
         self.write_buffer_to_file(&image_buffer).unwrap();
@@ -265,6 +243,7 @@ impl Camera {
     ) {
         for j in 0..scanlines {
             for i in 0..self.image_width {
+                let mut rng = rng.clone();
                 let color = self.sample_pixel(&mut rng, j_offset + j, i, world);
 
                 let gamma_corrected = color.gamma_corrected(2.2);
@@ -287,7 +266,8 @@ impl Camera {
                         let dy = j as f64 + yi as f64 * subpixel_interval - subpixel_offset;
                         let dx = i as f64 + xi as f64 * subpixel_interval - subpixel_offset;
 
-                        accumulator += self.sample_at(rng, dx, dy, world);
+                        let mut rng = rng.clone();
+                        accumulator += self.sample_at(&mut rng, dx, dy, world);
                     }
                 }
                 accumulator / samples_sqrt.pow(2) as f64
