@@ -20,11 +20,15 @@ pub struct CameraBuilder {
     aspect_ratio: Option<f64>,
     image_width: Option<usize>,
     pixel_sampler: Option<PixelSampler>,
-    depth: Option<usize>,
+    max_ray_depth: Option<usize>,
+
     field_of_view: Option<f64>,
     lookfrom: Option<Point3>,
     lookat: Option<Point3>,
     up_vector: Option<Vec3>,
+
+    defocus_angle: Option<f64>,
+    focus_distance: Option<f64>,
 }
 
 impl CameraBuilder {
@@ -33,11 +37,16 @@ impl CameraBuilder {
             aspect_ratio: None,
             image_width: None,
             pixel_sampler: None,
-            depth: None,
+            max_ray_depth: None,
+
             field_of_view: None,
             lookfrom: None,
             lookat: None,
             up_vector: None,
+
+            defocus_angle: None,
+            focus_distance: None,
+
         }
     }
     pub fn aspect_ratio(mut self, aspect_ratio: f64) -> Self {
@@ -56,8 +65,8 @@ impl CameraBuilder {
         self.pixel_sampler = Some(PixelSampler::Random(samples_per_pixel));
         self
     }
-    pub fn depth(mut self, depth: usize) -> Self {
-        self.depth = Some(depth);
+    pub fn max_ray_depth(mut self, max_ray_depth: usize) -> Self {
+        self.max_ray_depth = Some(max_ray_depth);
         self
     }
     pub fn field_of_view(mut self, field_of_view: f64) -> Self {
@@ -76,6 +85,14 @@ impl CameraBuilder {
         self.up_vector = Some(up_vector);
         self
     }
+    pub fn defocus_angle(mut self, defocus_angle: f64) -> Self {
+        self.defocus_angle = Some(defocus_angle);
+        self
+    }
+    pub fn focus_distance(mut self, focus_distance: f64) -> Self {
+        self.focus_distance = Some(focus_distance);
+        self
+    }
     pub fn build(self) -> Camera {
         let aspect_ratio = self.aspect_ratio.expect("The aspect ratio must be set");
         let image_width = self.image_width.expect("The image width must be set");
@@ -92,21 +109,26 @@ impl CameraBuilder {
             }
             PixelSampler::Random(samples_per_pixel) => PixelSampler::Random(samples_per_pixel),
         };
-        let depth = self.depth.expect("The depth must be set");
+        let depth = self.max_ray_depth.expect("The depth must be set");
 
         let field_of_view = self.field_of_view.unwrap_or(90.0);
         let lookfrom = self.lookfrom.unwrap_or(Point3::new(0., 0., 0.));
         let lookat = self.lookat.unwrap_or(Point3::new(0., 0., -1.));
         let up_vector = self.up_vector.unwrap_or(Vec3::new(0., 1., 0.));
 
+        let defocus_angle = self.defocus_angle.unwrap_or(0.0);
+        let focus_distance = self.focus_distance.unwrap_or(1.0);
+
+        // Actual initialization
+
         let image_height = ((image_width as f64 / aspect_ratio) as usize).max(1);
 
         let center = lookfrom;
 
-        let focal_length = (lookfrom - lookat).length();
+        //let focal_length = (lookfrom - lookat).length();
         let theta = field_of_view.to_radians();
         let h = (theta / 2.0).tan();
-        let viewport_height = 2.0 * h * focal_length;
+        let viewport_height = 2.0 * h * focus_distance;
         let viewport_width = viewport_height * image_width as f64 / image_height as f64;
 
         let w = (lookfrom - lookat).unit_vector();
@@ -119,8 +141,12 @@ impl CameraBuilder {
         let pixel_delta_u = viewport_u / image_width as f64;
         let pixel_delta_v = viewport_v / image_height as f64;
 
-        let viewport_upper_left = center - (focal_length * w) - viewport_u / 2. - viewport_v / 2.;
+        let viewport_upper_left = center - (focus_distance * w) - viewport_u / 2. - viewport_v / 2.;
         let pixel00_loc = viewport_upper_left + 0.5 * (pixel_delta_u + pixel_delta_v);
+
+        let defocus_radius = focus_distance * (defocus_angle / 2.0).to_radians().tan();
+        let defocus_disk_u = defocus_radius * u;
+        let defocus_disk_v = defocus_radius * v;
         Camera {
             aspect_ratio,
             image_width,
@@ -132,6 +158,9 @@ impl CameraBuilder {
             lookat,
             up_vector,
 
+            defocus_angle,
+            focus_distance,
+
             image_height,
             center,
             pixel00_loc,
@@ -140,6 +169,9 @@ impl CameraBuilder {
             w,
             u,
             v,
+
+            defocus_disk_u,
+            defocus_disk_v,
         }
     }
 }
@@ -154,6 +186,9 @@ pub struct Camera {
     lookat: Point3,
     up_vector: Vec3,
 
+    defocus_angle: f64,
+    focus_distance: f64,
+
     image_height: usize,
     center: Point3,
     pixel00_loc: Point3,
@@ -162,6 +197,9 @@ pub struct Camera {
     u: Vec3,
     v: Vec3,
     w: Vec3,
+
+    defocus_disk_u: Vec3,
+    defocus_disk_v: Vec3,
 }
 
 impl Camera {
@@ -185,8 +223,12 @@ impl Camera {
         //     self.render_scanline(rng.short_jump().clone(), j, world, chunk);
         // }
 
+        let threads = thread::available_parallelism().unwrap();
+        let lines_per_thread = self.image_height / (usize::from(threads) * 2);
         thread::scope(|s| {
-            for (j, chunk) in image_buffer.chunks_mut(self.image_width).enumerate() {
+            for (j, chunk) in image_buffer
+                .chunks_mut(self.image_width * lines_per_thread)
+                .enumerate() {
                 let mut rng = Rng::from_seed([
                     j as u64,
                     time::SystemTime::now()
@@ -203,27 +245,33 @@ impl Camera {
                 //     threshold = elapsed;
                 //     println!("{:.2}%", progress * 100.0);
                 // }
+                //
+                let j_offset = j * lines_per_thread;
+                let lines_per_thread = lines_per_thread.min(self.image_height - j_offset);
 
-                s.spawn(move || self.render_scanline(rng, j, world, chunk));
+                s.spawn(move || self.render_scanlines(rng, j_offset, lines_per_thread, world, chunk));
             }
         });
         self.write_buffer_to_file(&image_buffer).unwrap();
     }
 
-    fn render_scanline(
+    fn render_scanlines(
         &self,
         mut rng: Rng,
-        j: usize,
+        j_offset: usize,
+        scanlines: usize,
         world: &Box<dyn Hittable>,
         image_buffer: &mut [Color],
     ) {
-        for i in 0..self.image_width {
-            let color = self.sample_pixel(&mut rng, j, i, world);
+        for j in 0..scanlines {
+            for i in 0..self.image_width {
+                let color = self.sample_pixel(&mut rng, j_offset + j, i, world);
 
-            let gamma_corrected = color.gamma_corrected(2.2);
+                let gamma_corrected = color.gamma_corrected(2.2);
 
-            let index = (j * self.image_width) + i;
-            image_buffer[i] = gamma_corrected;
+                let index = (j * self.image_width) + i;
+                image_buffer[index] = gamma_corrected;
+            }
         }
     }
     fn sample_pixel(&self, rng: &mut Rng, j: usize, i: usize, world: &Box<dyn Hittable>) -> Color {
@@ -258,8 +306,13 @@ impl Camera {
 
     fn sample_at(&self, rng: &mut Rng, dx: f64, dy: f64, world: &Box<dyn Hittable>) -> Color {
         let pixel_center = self.pixel00_loc + (dx * self.pixel_delta_u) + (dy * self.pixel_delta_v);
-        let ray_direction = pixel_center - self.center;
-        let ray = Ray::new(self.center, ray_direction);
+        let ray_origin = if self.defocus_angle <= 0.0 {
+            self.center
+        } else {
+            self.defocus_disk_sample(rng)
+        };
+        let ray_direction = pixel_center - ray_origin;
+        let ray = Ray::new(ray_origin, ray_direction);
         self.ray_color(rng, &ray, world)
     }
     fn ray_color(&self, rng: &mut Rng, ray: &Ray, world: &Box<dyn Hittable>) -> Color {
@@ -285,6 +338,10 @@ impl Camera {
             return (1. - a) * Color::new(1., 1., 1.) + a * Color::new(0.5, 0.7, 1.);
         }
         return ray_color_inner(rng, 0, self.depth, ray, world);
+    }
+    fn defocus_disk_sample(&self, rng: &mut Rng) -> Vec3 {
+        let random = Vec3::random_in_unit_disk(rng);
+        self.center + self.defocus_disk_u * random.x + self.defocus_disk_v * random.y
     }
     // I would prefer this not be a method of the camera class but it's own thing
     fn write_buffer_to_file(&self, image_buffer: &Vec<Color>) -> std::io::Result<()> {

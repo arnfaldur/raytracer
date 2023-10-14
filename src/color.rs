@@ -2,6 +2,7 @@ use std::fs::File;
 use std::io::{BufWriter, Result, Write};
 use std::ops::{Add, AddAssign, Div, Mul, Neg, Sub};
 
+use crate::random::Rng;
 use crate::vec3::Vec3;
 
 type Value = f64;
@@ -48,6 +49,9 @@ impl Color {
     pub fn gamma_corrected(&self, gamma: Value) -> Self {
         let correct = |val: f64| val.powf(1.0 / gamma);
         Self::new(correct(self.r), correct(self.g), correct(self.b))
+    }
+    pub fn random(rng: &mut Rng) -> Self {
+        Self::new(rng.next_f64(), rng.next_f64(), rng.next_f64())
     }
     pub fn write_to_writer(&self, writer: &mut BufWriter<File>) -> Result<()> {
         let ir = (256.0 * self.r) as u8;

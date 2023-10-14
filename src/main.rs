@@ -9,7 +9,8 @@ use crate::color::Color;
 use crate::hittable::{Dielectric, HittableList, Lambertian, Metal, Sphere};
 use crate::ray::Ray;
 use crate::vec3::{Point3, Vec3};
-use hittable::Hittable;
+use hittable::{Hittable, Material};
+use random::Rng;
 
 mod camera;
 mod color;
@@ -28,12 +29,15 @@ fn main() -> std::io::Result<()> {
         .image_width(900)
         .field_of_view(30.0)
         //.image_width(3840)
-        .uniform_sampler(6_usize.pow(2))
-        .depth(20)
+        .uniform_sampler(8_usize.pow(2))
+        .max_ray_depth(20)
         //.random_sampler(4_usize.pow(2))
         .lookfrom(Point3::new(-2.0, 2.0, 1.0))
         .lookat(Point3::new(0.0, 0.0, -1.0))
         .up_vector(Vec3::new(0.0, 1.0, 0.0))
+        .defocus_angle(10.0)
+        .focus_distance(3.4)
+
         .build();
 
     let world = ordered();
@@ -45,6 +49,45 @@ fn main() -> std::io::Result<()> {
     let elapsed = start_time.elapsed().as_secs_f64();
     println!("Done in {:.3} seconds", elapsed);
     Ok(())
+}
+
+fn book_cover() -> Box<HittableList> {
+    let mut rng = Rng::from_seed([1,2]);
+    let mut world = Box::new(HittableList::default());
+    let ground_material = Arc::new(Lambertian::from(Color::new(0.5, 0.5, 0.5)));
+    world.add(Box::new(Sphere::new(
+        Point3::new(0.0, -1000.0, 0.0),
+        1000.0,
+        ground_material,
+    )));
+
+    for a in -11..11 {
+        for b in -11..11 {
+            let choose_mat = rng.next_f64();
+            let center = Point3::new(
+                a as f64 + 0.9 * rng.next_f64(),
+                0.2,
+                b as f64 + 0.9 * rng.next_f64(),
+            );
+            if (center - Point3::new(4.0, 0.2, 0.0)).length() > 0.9 {
+                let sphere_material: Arc<dyn Material> = if choose_mat < 0.8 {
+                    // diffuse
+                    let albedo = Color::random(&mut rng) * Color::random(&mut rng);
+                    Arc::new(Lambertian::from(albedo))
+                } else if choose_mat < 0.95 {
+                    // metal
+                    let albedo = Color::random(&mut rng) / 2.0 + 0.5;
+                    let fuzz = rng.next_f64_range(0.0..0.5);
+                    Arc::new(Metal::new(albedo, fuzz))
+                } else {
+                    // glass
+                    Arc::new(Dielectric::new(1.5))
+                };
+                world.add(Box::new(Sphere::new(center, 0.2, sphere_material)));
+            }
+        }
+    }
+    return world;
 }
 
 fn ordered() -> Box<HittableList> {

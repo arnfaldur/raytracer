@@ -23,15 +23,13 @@ impl Vec3 {
     pub fn zero() -> Self {
         Self::new(0., 0., 0.)
     }
-    pub fn random(rng: &mut Rng) -> Self {
-        Self::new(rng.next_f64(), rng.next_f64(), rng.next_f64())
-    }
-    pub fn random_range(rng: &mut Rng, range: Range<Value>) -> Self {
-        Self::random(rng) * (range.end - range.start) + range.start
-    }
     pub fn random_in_unit_sphere(rng: &mut Rng) -> Self {
         loop {
-            let candidate = Self::random_range(rng, -1.0..1.0);
+            let candidate = Self::new(
+                rng.next_f64_range(-1.0..1.0),
+                rng.next_f64_range(-1.0..1.0),
+                rng.next_f64_range(-1.0..1.0),
+            );
             if candidate.length_squared() < 1.0 {
                 return candidate;
             }
@@ -39,6 +37,18 @@ impl Vec3 {
     }
     pub fn random_on_unit_sphere(rng: &mut Rng) -> Self {
         Self::random_in_unit_sphere(rng).normalized()
+    }
+    pub fn random_in_unit_disk(rng: &mut Rng) -> Self {
+        loop {
+            let candidate = Self::new(
+                rng.next_f64_range(-1.0..1.0),
+                rng.next_f64_range(-1.0..1.0),
+                0.0,
+            );
+            if candidate.length_squared() < 1.0 {
+                return candidate;
+            }
+        }
     }
     pub fn random_on_hemisphere(rng: &mut Rng, normal: &Vec3) -> Self {
         let random = Self::random_on_unit_sphere(rng);

@@ -23,6 +23,9 @@ impl Rng {
     pub fn next_f64(&mut self) -> f64 {
         self.next_u64() as f64 / u64::MAX as f64
     }
+    pub fn next_f64_range(&mut self, range: std::ops::Range<f64>) -> f64 {
+        self.next_f64() * (range.end - range.start) + range.start
+    }
     fn jump_impl(&mut self, jumper: [u64; 2]) -> &mut Self {
         let mut s0 = 0;
         let mut s1 = 0;
