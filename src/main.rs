@@ -1,5 +1,6 @@
 #![allow(unused)]
 #![feature(float_next_up_down)]
+#![feature(test)]
 
 use std::sync::Arc;
 use std::time::Instant;
@@ -25,14 +26,17 @@ fn main() -> std::io::Result<()> {
 
     let camera = CameraBuilder::new()
         .aspect_ratio(16.0 / 9.0)
+        .aspect_ratio((16.0 / 3.) / (9.0 / 2.))
         // .aspect_ratio(1.0)
-        // .image_width(768)
-        .field_of_view(40.0)
+        .image_width(768)
+        .field_of_view(55.0)
         .image_width(1920)
+        .image_width(3840 / 3)
         //.image_width(3840)
-        .uniform_sampler(6_usize.pow(2))
+        .uniform_sampler(3_usize.pow(2))
         .max_ray_depth(20)
-        //.random_sampler(4_usize.pow(2))
+        .random_sampler(6_usize.pow(2))
+
         .lookfrom(Point3::new(0.0, 0.5, 1.0) * 1.5)
         .lookat(Point3::new(0.0, 0.3, 0.0))
         .up_vector(Vec3::new(0.0, 1.0, 0.0))

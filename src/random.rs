@@ -14,6 +14,7 @@ impl Rng {
     pub fn from_seed(seed: [u64; 2]) -> Self {
         Self { state: seed }
     }
+    #[inline]
     pub fn next_u64(&mut self) -> u64 {
         let a = self.state[0];
         let b = self.state[1];
@@ -25,9 +26,11 @@ impl Rng {
 
         return result;
     }
+    #[inline]
     pub fn next_f64(&mut self) -> f64 {
         self.next_u64() as f64 / u64::MAX as f64
     }
+    #[inline]
     pub fn next_f64_range(&mut self, range: std::ops::Range<f64>) -> f64 {
         self.next_f64() * (range.end - range.start) + range.start
     }

@@ -243,7 +243,7 @@ impl Camera {
     ) {
         for j in 0..scanlines {
             for i in 0..self.image_width {
-                let mut rng = rng.clone();
+                //let mut rng = rng.clone();
                 let color = self.sample_pixel(&mut rng, j_offset + j, i, world);
 
                 let gamma_corrected = color.gamma_corrected(2.2);
@@ -258,6 +258,7 @@ impl Camera {
 
         match self.pixel_sampler {
             PixelSampler::Uniform(samples_sqrt) => {
+                // let mut rng = rng.clone();
                 for yi in 0..samples_sqrt {
                     for xi in 0..samples_sqrt {
                         let subpixel_interval = 1.0 / samples_sqrt as f64;
@@ -266,16 +267,20 @@ impl Camera {
                         let dy = j as f64 + yi as f64 * subpixel_interval - subpixel_offset;
                         let dx = i as f64 + xi as f64 * subpixel_interval - subpixel_offset;
 
-                        let mut rng = rng.clone();
-                        accumulator += self.sample_at(&mut rng, dx, dy, world);
+                        // rng.short_jump();
+                        // let mut rng = rng.clone();
+                        accumulator += self.sample_at(rng, dx, dy, world);
                     }
                 }
                 accumulator / samples_sqrt.pow(2) as f64
             }
             PixelSampler::Random(samples) => {
+                //let mut rng = rng.clone();
                 for _ in 0..samples {
-                    let dy = j as f64 + rng.next_f64() - 0.5;
-                    let dx = i as f64 + rng.next_f64() - 0.5;
+                    //rng.short_jump();
+                    //let mut rng = rng.clone();
+                    let dy = j as f64 + rng.next_f64_range(-0.5..0.5);
+                    let dx = i as f64 + rng.next_f64_range(-0.5..0.5);
 
                     accumulator += self.sample_at(rng, dx, dy, world);
                 }
@@ -320,7 +325,7 @@ impl Camera {
         return ray_color_inner(rng, 0, self.depth, ray, world);
     }
     fn defocus_disk_sample(&self, rng: &mut Rng) -> Vec3 {
-        let random = Vec3::random_in_unit_disk(rng);
+        let random = Vec3::random_in_unit_circle(rng);
         self.center + self.defocus_disk_u * random.x + self.defocus_disk_v * random.y
     }
     // I would prefer this not be a method of the camera class but it's own thing

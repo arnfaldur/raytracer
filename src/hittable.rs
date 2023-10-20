@@ -193,11 +193,12 @@ impl Material for Dielectric {
 
         let cannot_refract = refraction_ratio * sin_theta > 1.0;
 
-        let direction = if cannot_refract || reflectance(cos_theta, refraction_ratio) > rng.next_f64() {
-            unit_direction.reflect(&hit_record.normal)
-        } else {
-            refract(&unit_direction, &hit_record.normal, refraction_ratio)
-        };
+        let direction =
+            if cannot_refract || reflectance(cos_theta, refraction_ratio) > rng.next_f64() {
+                unit_direction.reflect(&hit_record.normal)
+            } else {
+                refract(&unit_direction, &hit_record.normal, refraction_ratio)
+            };
 
         let scattered = Ray::new(hit_record.point, direction);
 

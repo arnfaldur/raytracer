@@ -1,4 +1,5 @@
 use std::{
+    f64,
     fmt::Debug,
     ops::{Add, Div, Mul, Neg, Range, Sub},
 };
@@ -23,7 +24,7 @@ impl Vec3 {
     pub fn zero() -> Self {
         Self::new(0., 0., 0.)
     }
-    pub fn random_in_unit_sphere(rng: &mut Rng) -> Self {
+    pub fn random_in_unit_sphere_reject(rng: &mut Rng) -> Self {
         loop {
             let candidate = Self::new(
                 rng.next_f64_range(-1.0..1.0),
@@ -35,10 +36,16 @@ impl Vec3 {
             }
         }
     }
+    pub fn random_in_unit_sphere(rng: &mut Rng) -> Self {
+        let theta = rng.next_f64_range(0.0..2.0 * f64::consts::PI);
+        let z = rng.next_f64_range(-1.0..1.0);
+        let r = (1.0 - z.powi(2)).sqrt();
+        Self::new(r * theta.cos(), r * theta.sin(), z)
+    }
     pub fn random_on_unit_sphere(rng: &mut Rng) -> Self {
         Self::random_in_unit_sphere(rng).normalized()
     }
-    pub fn random_in_unit_disk(rng: &mut Rng) -> Self {
+    pub fn random_in_unit_circle(rng: &mut Rng) -> Self {
         loop {
             let candidate = Self::new(
                 rng.next_f64_range(-1.0..1.0),
@@ -52,11 +59,6 @@ impl Vec3 {
     }
     pub fn random_on_hemisphere(rng: &mut Rng, normal: &Vec3) -> Self {
         let random = Self::random_on_unit_sphere(rng);
-        // if random.dot(normal) > 0.0 {
-        //     random
-        // } else {
-        //     -random
-        // }
         random.dot(normal).signum() * random
     }
     pub fn reflect(&self, normal: &Vec3) -> Vec3 {
@@ -151,5 +153,32 @@ impl Debug for Vec3 {
         //     // .field(&self.y)
         //     // .field(&self.z)
         //     .finish()
+    }
+}
+
+extern crate test;
+
+#[cfg(test)]
+mod tests {
+    use std::hint::black_box;
+
+    use super::*;
+    use crate::random::Rng;
+    use test::Bencher;
+
+    #[bench]
+    fn bench_random_in_unit_sphere(b: &mut Bencher) {
+        let mut rng = Rng::new();
+        b.iter(|| {
+            black_box(Vec3::random_in_unit_sphere(&mut rng));
+        });
+    }
+
+    #[bench]
+    fn bench_random_in_unit_sphere_reject(b: &mut Bencher) {
+        let mut rng = Rng::new();
+        b.iter(|| {
+            black_box(Vec3::random_in_unit_sphere_reject(&mut rng));
+        });
     }
 }
