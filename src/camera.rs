@@ -1,5 +1,8 @@
 use std::fs::File;
 use std::io::{BufWriter, Write};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::mpsc::{channel, sync_channel};
+use std::sync::Arc;
 use std::time::{Instant, UNIX_EPOCH};
 use std::{default, thread, time};
 
@@ -202,6 +205,36 @@ pub struct Camera {
 }
 
 impl Camera {
+    // pub fn render(&self, world: &Box<dyn Hittable>) {
+    //     let progress_interval = 1000;
+    //     let start_time = Instant::now();
+    //     let pixel_count = self.image_width * self.image_height;
+    //     let mut image_buffer = vec![Color::black(); pixel_count];
+
+    //     let mut rng = Rng::from_seed([123, 128]);
+    //     let mut rng = rng.short_jump();
+
+    //     let mut threshold = 0;
+
+    //     let threads = thread::available_parallelism().unwrap();
+    //     let lines_per_thread = self.image_height / (usize::from(threads) * 2);
+    //     thread::scope(|s| {
+    //         for (j, chunk) in image_buffer
+    //             .chunks_mut(self.image_width * lines_per_thread)
+    //             .enumerate()
+    //         {
+    //             // let inner_rng = rng.clone().short_jump().clone();
+    //             let inner_rng = rng.clone();
+    //             let j_offset = j * lines_per_thread;
+    //             let lines_per_thread = lines_per_thread.min(self.image_height - j_offset);
+
+    //             s.spawn(move || {
+    //                 self.render_scanlines(inner_rng, j_offset, lines_per_thread, world, chunk)
+    //             });
+    //         }
+    //     });
+    //     self.write_buffer_to_file(&image_buffer).unwrap();
+    // }
     pub fn render(&self, world: &Box<dyn Hittable>) {
         let progress_interval = 1000;
         let start_time = Instant::now();
@@ -213,24 +246,81 @@ impl Camera {
 
         let mut threshold = 0;
 
-        let threads = thread::available_parallelism().unwrap();
-        let lines_per_thread = self.image_height / (usize::from(threads) * 2);
+        let threads: usize = thread::available_parallelism().unwrap().into();
+        let rect = (64, 64);
+        let rect = (32, 32);
+        let rect_count = self.image_height.div_ceil(rect.0) * self.image_width.div_ceil(rect.1);
         thread::scope(|s| {
-            for (j, chunk) in image_buffer
-                .chunks_mut(self.image_width * lines_per_thread)
-                .enumerate()
-            {
-                let inner_rng = rng.clone().short_jump().clone();
-                let inner_rng = rng.clone();
-                let j_offset = j * lines_per_thread;
-                let lines_per_thread = lines_per_thread.min(self.image_height - j_offset);
+            let get_parameters = |index: usize| {
+                let by = self.image_height.div_ceil(rect.0);
+                let bx = self.image_width.div_ceil(rect.1);
+                let rect_y = index / bx;
+                let rect_x = index % bx;
+                let top_left = (rect_y * rect.0, rect_x * rect.1);
+                let rect = (
+                    rect.0.min(self.image_height - top_left.0),
+                    rect.1.min(self.image_width - top_left.1),
+                );
 
+                return (rng.clone(), top_left, rect, world);
+            };
+
+            let shared_index = Arc::new(AtomicUsize::new(0));
+
+            let (worker_sender, delegator_receiver) = sync_channel(1);
+            for thread in 0..threads {
+                let shared_index = shared_index.clone();
+                let worker_sender = worker_sender.clone();
                 s.spawn(move || {
-                    self.render_scanlines(inner_rng, j_offset, lines_per_thread, world, chunk)
+                    loop {
+                        let idx = shared_index.fetch_add(1, Ordering::SeqCst);
+                        if idx >= rect_count {
+                            return;
+                        }
+
+                        let (rng, top_left, rect, world) = get_parameters(idx);
+                        let result = self.render_rect(rng, top_left, rect, world);
+                        worker_sender.send((top_left, rect, result)).unwrap();
+                    }
+                    drop(worker_sender);
                 });
             }
+
+            for i in 0..rect_count {
+                let (top_left, rect, result) = delegator_receiver.recv().unwrap();
+                for dy in 0..rect.0 {
+                    for dx in 0..rect.1 {
+                        let index = ((top_left.0 + dy) * self.image_width) + (top_left.1 + dx);
+                        image_buffer[index] = result[(dy * rect.1) + dx];
+                    }
+                }
+            }
+            println!("done");
         });
         self.write_buffer_to_file(&image_buffer).unwrap();
+    }
+
+    fn render_rect(
+        &self,
+        mut rng: Rng,
+        top_left: (usize, usize),
+        rect: (usize, usize),
+        world: &Box<dyn Hittable>,
+    ) -> Vec<Color> {
+        let (height, width) = rect;
+        let mut result = vec![Color::black(); rect.0 * rect.1];
+        for j in 0..height {
+            for i in 0..width {
+                let mut rng = rng.clone();
+                let color = self.sample_pixel(&mut rng, top_left.0 + j, top_left.1 + i, world);
+
+                let gamma_corrected = color.gamma_corrected(2.2);
+
+                let index = (j * width) + i;
+                result[index] = gamma_corrected;
+            }
+        }
+        return result;
     }
 
     fn render_scanlines(
@@ -243,7 +333,7 @@ impl Camera {
     ) {
         for j in 0..scanlines {
             for i in 0..self.image_width {
-                //let mut rng = rng.clone();
+                let mut rng = rng.clone();
                 let color = self.sample_pixel(&mut rng, j_offset + j, i, world);
 
                 let gamma_corrected = color.gamma_corrected(2.2);
