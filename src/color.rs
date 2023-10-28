@@ -53,6 +53,12 @@ impl Color {
     pub fn random(rng: &mut Rng) -> Self {
         Self::new(rng.next_f64(), rng.next_f64(), rng.next_f64())
     }
+    pub fn into_u8(&self) -> (u8, u8, u8) {
+        let ir = (256.0 * self.r) as u8;
+        let ig = (256.0 * self.g) as u8;
+        let ib = (256.0 * self.b) as u8;
+        return (ir, ig, ib);
+    }
     pub fn write_to_writer(&self, writer: &mut BufWriter<File>) -> Result<()> {
         let ir = (256.0 * self.r) as u8;
         let ig = (256.0 * self.g) as u8;

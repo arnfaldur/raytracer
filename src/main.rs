@@ -1,7 +1,7 @@
 #![allow(unused)]
 #![feature(test)]
 
-use std::sync::mpsc::{Receiver, Sender};
+use std::sync::mpsc::{Receiver, Sender, SyncSender};
 use std::sync::Arc;
 use std::thread::Scope;
 use std::time::Instant;
@@ -27,6 +27,7 @@ mod vec3;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::PixelFormatEnum;
+use sdl2::rect::Rect;
 use std::time::Duration;
 
 fn main() {
@@ -34,14 +35,14 @@ fn main() {
         .aspect_ratio(16.0 / 9.0)
         .aspect_ratio((16.0 / 3.) / (9.0 / 2.))
         // .aspect_ratio(1.0)
-        .image_width(768)
         .field_of_view(55.0)
+        .image_width(768)
         .image_width(1920)
-        .image_width(3840 / 3)
+        .image_width(3840 / 4)
         //.image_width(3840)
-        .uniform_sampler(3_usize.pow(2))
+        .uniform_sampler(6_usize.pow(2))
         .max_ray_depth(10)
-        .random_sampler(6_usize.pow(2))
+        .random_sampler(9_usize.pow(2))
         .lookfrom(Point3::new(0.0, 0.5, 1.0) * 1.5)
         .lookat(Point3::new(0.0, 0.3, 0.0))
         .up_vector(Vec3::new(0.0, 1.0, 0.0))
@@ -49,11 +50,10 @@ fn main() {
         //.focus_distance(6.5)
         .build();
 
-
     std::thread::scope(|s| {
-        let (sender, receiver) = std::sync::mpsc::channel();
+        let (sender, receiver) = std::sync::mpsc::sync_channel(64);
         s.spawn(move || {
-            sdl_thread(receiver);
+            sdl_thread(camera.image_width, camera.image_height, receiver);
         });
         s.spawn(move || {
             render_thread(camera, sender);
@@ -61,13 +61,17 @@ fn main() {
     });
 }
 
-fn sdl_thread(receiver: Receiver<((usize, usize), (usize, usize), Vec<Color>)>) {
+fn sdl_thread(
+    image_width: usize,
+    image_height: usize,
+    receiver: Receiver<((usize, usize), (usize, usize), Vec<Color>)>,
+) {
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
 
     let window = video_subsystem
-        .window("rust-sdl2 demo", 800, 600)
-        .position_centered()
+        .window("raytracer", image_width as u32, image_height as u32)
+        //.position_centered()
         .build()
         .unwrap();
 
@@ -89,9 +93,6 @@ fn sdl_thread(receiver: Receiver<((usize, usize), (usize, usize), Vec<Color>)>) 
     let mut event_pump = sdl_context.event_pump().unwrap();
     let mut i = 0;
     'running: loop {
-        i = (i + 1) % 255;
-        canvas.set_draw_color(sdl2::pixels::Color::RGB(i, 64, 255 - i));
-        canvas.clear();
         for event in event_pump.poll_iter() {
             match event {
                 Event::Quit { .. }
@@ -106,20 +107,39 @@ fn sdl_thread(receiver: Receiver<((usize, usize), (usize, usize), Vec<Color>)>) 
                 _ => {}
             }
         }
-        while let Ok((top_left, rect, result)) = receiver.try_recv() {
-            dbg!(top_left);
+        while let Ok((top_left, size, result)) = receiver.try_recv() {
+            texture
+                .with_lock(None, |buffer: &mut [u8], pitch: usize| {
+                    for dy in 0..size.0 {
+                        for dx in 0..size.1 {
+                            let index = (((top_left.0 + dy) * image_width) + (top_left.1 + dx)) * 3;
+                            let (ir, ig, ib) = result[(dy * size.1) + dx].into_u8();
+                            buffer[index + 0] = ir;
+                            buffer[index + 1] = ig;
+                            buffer[index + 2] = ib;
+                        }
+                    }
+                })
+                .unwrap();
+            let rect = Rect::new(
+                top_left.1 as i32,
+                top_left.0 as i32,
+                size.1 as u32,
+                size.0 as u32,
+            );
+            canvas.copy(&texture, Some(rect), Some(rect)).unwrap();
         }
+        //canvas.copy(&texture, None, None).unwrap();
 
         canvas.present();
         ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
     }
+    drop(receiver);
 }
-
-// TMP ----------------------------------------------------------------------------------------------------
 
 fn render_thread(
     camera: Camera,
-    sender: Sender<((usize, usize), (usize, usize), Vec<Color>)>,
+    sender: SyncSender<((usize, usize), (usize, usize), Vec<Color>)>,
 ) -> std::io::Result<()> {
     let start_time = Instant::now();
 
@@ -301,10 +321,29 @@ fn composition() -> Box<HittableList> {
     return world;
 }
 
-fn value_to_color(value: f64) -> Color {
-    Color::new(
-        if value < 0.0 { value } else { 0. },
-        if value > 0.0 { value.fract() } else { 0. },
-        value.abs() / 10.,
-    )
+extern crate test;
+
+#[cfg(test)]
+mod tests {
+    use std::hint::black_box;
+
+    use super::*;
+    use crate::random::Rng;
+    use test::Bencher;
+
+    #[bench]
+    fn bench_random_in_unit_sphere(b: &mut Bencher) {
+        let mut rng = Rng::new();
+        b.iter(|| {
+            black_box(Vec3::random_in_unit_sphere(&mut rng));
+        });
+    }
+
+    #[bench]
+    fn bench_random_in_unit_sphere_reject(b: &mut Bencher) {
+        let mut rng = Rng::new();
+        b.iter(|| {
+            black_box(Vec3::random_in_unit_sphere_reject(&mut rng));
+        });
+    }
 }

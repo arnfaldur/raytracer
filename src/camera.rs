@@ -1,7 +1,7 @@
 use std::fs::File;
 use std::io::{BufWriter, Write};
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::mpsc::{channel, sync_channel, Sender};
+use std::sync::mpsc::{channel, sync_channel, Sender, SyncSender};
 use std::sync::Arc;
 use std::time::{Instant, UNIX_EPOCH};
 use std::{default, thread, time};
@@ -179,7 +179,7 @@ impl CameraBuilder {
 }
 pub struct Camera {
     aspect_ratio: f64,
-    image_width: usize,
+    pub image_width: usize,
     pixel_sampler: PixelSampler,
     depth: usize,
 
@@ -191,7 +191,7 @@ pub struct Camera {
     defocus_angle: f64,
     focus_distance: f64,
 
-    image_height: usize,
+    pub image_height: usize,
     center: Point3,
     pixel00_loc: Point3,
     pixel_delta_u: Vec3,
@@ -238,7 +238,7 @@ impl Camera {
     pub fn render(
         &self,
         world: &Box<dyn Hittable>,
-        sender: Sender<((usize, usize), (usize, usize), Vec<Color>)>,
+        sender: SyncSender<((usize, usize), (usize, usize), Vec<Color>)>,
     ) {
         let progress_interval = 1000;
         let start_time = Instant::now();
@@ -279,12 +279,14 @@ impl Camera {
                     loop {
                         let idx = shared_index.fetch_add(1, Ordering::SeqCst);
                         if idx >= rect_count {
-                            return;
+                            break;
                         }
 
                         let (rng, top_left, rect, world) = get_parameters(idx);
                         let result = self.render_rect(rng, top_left, rect, world);
-                        worker_sender.send((top_left, rect, result)).unwrap();
+                        if let Err(_) = worker_sender.send((top_left, rect, result)) {
+                            break;
+                        }
                     }
                     drop(worker_sender);
                 });
@@ -298,11 +300,13 @@ impl Camera {
                         image_buffer[index] = result[(dy * rect.1) + dx];
                     }
                 }
-                sender.send((top_left, rect, result));
+                if let Err(_) = sender.send((top_left, rect, result)) {
+                    println!("cancelled");
+                    return;
+                }
             }
-            println!("done");
+            self.write_buffer_to_file(&image_buffer).unwrap();
         });
-        self.write_buffer_to_file(&image_buffer).unwrap();
     }
 
     fn render_rect(
