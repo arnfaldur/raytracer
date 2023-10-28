@@ -1,8 +1,9 @@
 #![allow(unused)]
-#![feature(float_next_up_down)]
 #![feature(test)]
 
+use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Arc;
+use std::thread::Scope;
 use std::time::Instant;
 
 use crate::camera::{Camera, CameraBuilder};
@@ -21,9 +22,14 @@ mod range;
 mod ray;
 mod vec3;
 
-fn main() -> std::io::Result<()> {
-    let start_time = Instant::now();
+// TMP ----------------------------------------------------------------------------------------------------
 
+use sdl2::event::Event;
+use sdl2::keyboard::Keycode;
+use sdl2::pixels::PixelFormatEnum;
+use std::time::Duration;
+
+fn main() {
     let camera = CameraBuilder::new()
         .aspect_ratio(16.0 / 9.0)
         .aspect_ratio((16.0 / 3.) / (9.0 / 2.))
@@ -34,9 +40,8 @@ fn main() -> std::io::Result<()> {
         .image_width(3840 / 3)
         //.image_width(3840)
         .uniform_sampler(3_usize.pow(2))
-        .max_ray_depth(20)
+        .max_ray_depth(10)
         .random_sampler(6_usize.pow(2))
-
         .lookfrom(Point3::new(0.0, 0.5, 1.0) * 1.5)
         .lookat(Point3::new(0.0, 0.3, 0.0))
         .up_vector(Vec3::new(0.0, 1.0, 0.0))
@@ -44,11 +49,102 @@ fn main() -> std::io::Result<()> {
         //.focus_distance(6.5)
         .build();
 
+
+    std::thread::scope(|s| {
+        let (sender, receiver) = std::sync::mpsc::channel();
+        s.spawn(move || {
+            sdl_thread(receiver);
+        });
+        s.spawn(move || {
+            render_thread(camera, sender);
+        });
+    });
+}
+
+fn sdl_thread(receiver: Receiver<((usize, usize), (usize, usize), Vec<Color>)>) {
+    let sdl_context = sdl2::init().unwrap();
+    let video_subsystem = sdl_context.video().unwrap();
+
+    let window = video_subsystem
+        .window("rust-sdl2 demo", 800, 600)
+        .position_centered()
+        .build()
+        .unwrap();
+
+    let mut canvas = window.into_canvas().build().unwrap();
+    let texture_creator = canvas.texture_creator();
+
+    let mut texture = texture_creator
+        .create_texture_streaming(
+            PixelFormatEnum::RGB24,
+            canvas.output_size().unwrap().0,
+            canvas.output_size().unwrap().1,
+        )
+        .map_err(|e| e.to_string())
+        .unwrap();
+
+    canvas.copy(&texture, None, None).unwrap();
+
+    canvas.present();
+    let mut event_pump = sdl_context.event_pump().unwrap();
+    let mut i = 0;
+    'running: loop {
+        i = (i + 1) % 255;
+        canvas.set_draw_color(sdl2::pixels::Color::RGB(i, 64, 255 - i));
+        canvas.clear();
+        for event in event_pump.poll_iter() {
+            match event {
+                Event::Quit { .. }
+                | Event::KeyDown {
+                    keycode: Some(Keycode::Q),
+                    ..
+                }
+                | Event::KeyDown {
+                    keycode: Some(Keycode::Escape),
+                    ..
+                } => break 'running,
+                _ => {}
+            }
+        }
+        while let Ok((top_left, rect, result)) = receiver.try_recv() {
+            dbg!(top_left);
+        }
+
+        canvas.present();
+        ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
+    }
+}
+
+// TMP ----------------------------------------------------------------------------------------------------
+
+fn render_thread(
+    camera: Camera,
+    sender: Sender<((usize, usize), (usize, usize), Vec<Color>)>,
+) -> std::io::Result<()> {
+    let start_time = Instant::now();
+
     let world = composition();
+    // let camera = CameraBuilder::new()
+    //     .aspect_ratio(16.0 / 9.0)
+    //     // .aspect_ratio(1.0)
+    //     .image_width(1200)
+    //     .field_of_view(20.0)
+    //     //.image_width(3840)
+    //     .uniform_sampler(25_usize.pow(2))
+    //     .max_ray_depth(50)
+    //     //.random_sampler(4_usize.pow(2))
+    //     .lookfrom(Point3::new(13.0, 2.0, 3.0))
+    //     .lookat(Point3::new(0.0, 0.0, 0.0))
+    //     .up_vector(Vec3::new(0.0, 1.0, 0.0))
+    //     .defocus_angle(0.6)
+    //     .focus_distance(10.0)
+    //     .build();
+
+    // let world = book_cover();
 
     let world = world as Box<dyn Hittable>;
 
-    camera.render(&world);
+    camera.render(&world, sender);
 
     let elapsed = start_time.elapsed().as_secs_f64();
     println!("Done in {:.3} seconds", elapsed);
@@ -200,7 +296,7 @@ fn composition() -> Box<HittableList> {
     world.add(Box::new(Sphere::new(
         Point3::new(-1.0, 0., -1.0),
         0.5,
-        Arc::new(Metal::new(Color::gray(0.7), 0.3)),
+        Arc::new(Metal::new(Color::gray(0.7), 0.0)),
     )));
     return world;
 }

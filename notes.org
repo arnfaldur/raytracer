@@ -1,0 +1,10 @@
+#+title: Notes
+
+* Benchmarks
+Testing multithreading performance before.
+@ commit bbafd39 origin/main fixed seed experiments
+render time:
+- 4.575
+- 4.539
+
+and after MT improvements:

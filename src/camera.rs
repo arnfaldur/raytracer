@@ -1,7 +1,7 @@
 use std::fs::File;
 use std::io::{BufWriter, Write};
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::mpsc::{channel, sync_channel};
+use std::sync::mpsc::{channel, sync_channel, Sender};
 use std::sync::Arc;
 use std::time::{Instant, UNIX_EPOCH};
 use std::{default, thread, time};
@@ -235,7 +235,11 @@ impl Camera {
     //     });
     //     self.write_buffer_to_file(&image_buffer).unwrap();
     // }
-    pub fn render(&self, world: &Box<dyn Hittable>) {
+    pub fn render(
+        &self,
+        world: &Box<dyn Hittable>,
+        sender: Sender<((usize, usize), (usize, usize), Vec<Color>)>,
+    ) {
         let progress_interval = 1000;
         let start_time = Instant::now();
         let pixel_count = self.image_width * self.image_height;
@@ -294,6 +298,7 @@ impl Camera {
                         image_buffer[index] = result[(dy * rect.1) + dx];
                     }
                 }
+                sender.send((top_left, rect, result));
             }
             println!("done");
         });
