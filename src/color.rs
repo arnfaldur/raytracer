@@ -21,6 +21,12 @@ impl Color {
     pub fn gray(value: Value) -> Self {
         Self::new(value, value, value)
     }
+    pub fn from_hex(hex: u32) -> Self {
+        let r = ((hex >> 16) & 0xff) as Value / 255.0;
+        let g = ((hex >> 8) & 0xff) as Value / 255.0;
+        let b = (hex & 0xff) as Value / 255.0;
+        Self::new(r, g, b)
+    }
     pub fn white() -> Self {
         Self::new(1., 1., 1.)
     }

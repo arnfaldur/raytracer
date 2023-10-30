@@ -3,7 +3,10 @@ use std::sync::{mpsc::SyncSender, Arc};
 use crate::{
     camera::{builder::CameraBuilder, Camera},
     color::Color,
-    hittable::{Dielectric, Hittable, HittableList, Lambertian, Metal, Sphere, Material},
+    hittable::{
+        materials::Dielectric, materials::Lambertian, materials::Material, materials::Metal,
+        Hittable, HittableList, MovingSphere, Sphere,
+    },
     random::Rng,
     vec3::{Point3, Vec3},
 };
@@ -82,7 +85,7 @@ pub fn book_cover(camera_builder: CameraBuilder) -> Scene<Box<dyn Hittable>> {
         .lookfrom(Point3::new(13.0, 2.0, 3.0))
         .lookat(Point3::new(0.0, 0.0, 0.0))
         .up_vector(Vec3::new(0.0, 1.0, 0.0))
-        .defocus_angle(0.6)
+        .defocus_angle(0.3)
         .focus_distance(10.0)
         .build();
 
@@ -95,8 +98,8 @@ pub fn book_cover(camera_builder: CameraBuilder) -> Scene<Box<dyn Hittable>> {
         ground_material,
     )));
 
-    for a in -0..7 {
-        for b in -0..3 {
+    for a in -11..11 {
+        for b in -11..11 {
             let choose_mat = rng.next_f64();
             let center = Point3::new(
                 a as f64 + 0.9 * rng.next_f64(),
@@ -117,7 +120,11 @@ pub fn book_cover(camera_builder: CameraBuilder) -> Scene<Box<dyn Hittable>> {
                     // glass
                     Arc::new(Dielectric::new(1.5))
                 };
-                world.add(Box::new(Sphere::new(center, 0.2, sphere_material)));
+                //world.add(Box::new(Sphere::new(center, 0.2, sphere_material)));
+                world.add(Box::new(MovingSphere::new(
+                    Sphere::new(center, 0.2, sphere_material),
+                    center + Point3::new(0.0, 0.5 * (1. - choose_mat), 0.0),
+                )));
             }
         }
     }
@@ -130,12 +137,62 @@ pub fn book_cover(camera_builder: CameraBuilder) -> Scene<Box<dyn Hittable>> {
     world.add(Box::new(Sphere::new(
         Point3::new(-4.0, 1.0, 0.0),
         1.0,
-        Arc::new(Lambertian::from(Color::new(0.4, 0.2, 0.1))),
+        Arc::new(Lambertian::from(Color::from_hex(0xffca3a))),
     )));
     world.add(Box::new(Sphere::new(
         Point3::new(4.0, 1.0, 0.0),
         1.0,
-        Arc::new(Metal::new(Color::new(0.7, 0.6, 0.5), 0.0)),
+        Arc::new(Metal::new(Color::new(0.8, 0.8, 0.8), 0.0)),
     )));
     return Scene { camera, world };
+}
+
+fn ordered() -> Box<HittableList> {
+    let mut world = Box::new(HittableList::default());
+    let mat_ground = Arc::new(Lambertian::from(Color::new(0.8, 0.8, 0.0)));
+    let mat_center = Arc::new(Lambertian::from(Color::new(0.1, 0.2, 0.5)));
+    let mat_left = Arc::new(Dielectric::new(1.5));
+    let mat_right = Arc::new(Metal::new(Color::new(0.8, 0.6, 0.2), 0.0));
+
+    world.add(Box::new(Sphere::new(
+        Point3::new(0.0, -100.5, -1.),
+        100.0,
+        mat_ground,
+    )));
+    world.add(Box::new(Sphere::new(
+        Point3::new(0.0, 0.0, -1.),
+        0.5,
+        mat_center,
+    )));
+    world.add(Box::new(Sphere::new(
+        Point3::new(-1.0, 0.0, -1.),
+        0.5,
+        mat_left.clone(),
+    )));
+    world.add(Box::new(Sphere::new(
+        Point3::new(-1.0, 0.0, -1.),
+        -0.4,
+        mat_left.clone(),
+    )));
+    world.add(Box::new(Sphere::new(
+        Point3::new(1.0, 0.0, -1.),
+        0.5,
+        mat_right,
+    )));
+    return world;
+}
+fn fov_test() -> Box<HittableList> {
+    let mut world = Box::new(HittableList::default());
+    let r = (std::f64::consts::PI / 4.0).cos();
+    world.add(Box::new(Sphere::new(
+        Point3::new(r, 0., -1.),
+        r,
+        Arc::new(Lambertian::from(Color::new(1.0, 0.0, 0.0))),
+    )));
+    world.add(Box::new(Sphere::new(
+        Point3::new(-r, 0., -1.),
+        r,
+        Arc::new(Lambertian::from(Color::new(0.0, 0.0, 1.0))),
+    )));
+    return world;
 }

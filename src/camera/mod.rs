@@ -1,10 +1,11 @@
 use std::fs::File;
 use std::io::{BufWriter, Write};
+use std::ops::BitXor;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::{sync_channel, SyncSender};
 use std::sync::Arc;
-use std::time::{Instant};
-use std::{thread};
+use std::thread;
+use std::time::Instant;
 
 use crate::random::Rng;
 use crate::{
@@ -59,11 +60,8 @@ impl Camera {
         let pixel_count = self.image_width * self.image_height;
         let mut image_buffer = vec![Color::black(); pixel_count];
 
-        let mut rng = Rng::from_seed([123, 128]);
-        let mut rng = rng.short_jump();
-
         let threads = usize::from(thread::available_parallelism().unwrap());
-        let rect = (32, 32);
+        let rect = (64, 64);
         let rect_count = self.image_height.div_ceil(rect.0) * self.image_width.div_ceil(rect.1);
         thread::scope(|s| {
             let get_parameters = |index: usize| {
@@ -76,7 +74,7 @@ impl Camera {
                     rect.1.min(self.image_width - top_left.1),
                 );
 
-                return (rng.clone(), top_left, rect, world);
+                return (top_left, rect, world);
             };
 
             let shared_index = Arc::new(AtomicUsize::new(0));
@@ -91,8 +89,8 @@ impl Camera {
                         if idx >= rect_count {
                             break;
                         }
-                        let (rng, top_left, rect, world) = get_parameters(idx);
-                        let result = self.render_rect(rng, top_left, rect, world);
+                        let (top_left, rect, world) = get_parameters(idx);
+                        let result = self.render_rect(top_left, rect, world);
                         if let Err(_) = worker_sender.send((top_left, rect, result)) {
                             break;
                         }
@@ -120,16 +118,17 @@ impl Camera {
 
     fn render_rect(
         &self,
-        rng: Rng,
         top_left: (usize, usize),
         rect: (usize, usize),
         world: &Box<dyn Hittable>,
     ) -> Vec<Color> {
+        let mut rng = Rng::from_seed([top_left.0 as u64 + 1, top_left.1 as u64 + 1]);
+        let mut rng = rng.short_jump();
         let (height, width) = rect;
         let mut result = vec![Color::black(); rect.0 * rect.1];
         for j in 0..height {
             for i in 0..width {
-                let mut rng = rng.clone();
+                let mut rng = rng.short_jump().clone();
                 let color = self.sample_pixel(&mut rng, top_left.0 + j, top_left.1 + i, world);
 
                 let gamma_corrected = color.gamma_corrected(2.2);
@@ -146,7 +145,6 @@ impl Camera {
 
         match self.pixel_sampler {
             PixelSampler::Uniform(samples_sqrt) => {
-                // let mut rng = rng.clone();
                 for yi in 0..samples_sqrt {
                     for xi in 0..samples_sqrt {
                         let subpixel_interval = 1.0 / samples_sqrt as f64;
@@ -155,8 +153,6 @@ impl Camera {
                         let dy = j as f64 + yi as f64 * subpixel_interval - subpixel_offset;
                         let dx = i as f64 + xi as f64 * subpixel_interval - subpixel_offset;
 
-                        // rng.short_jump();
-                        // let mut rng = rng.clone();
                         accumulator += self.sample_at(rng, dx, dy, world);
                     }
                 }
@@ -185,8 +181,8 @@ impl Camera {
             self.defocus_disk_sample(rng)
         };
         let ray_direction = pixel_center - ray_origin;
-        let ray = Ray::new(ray_origin, ray_direction);
-        self.ray_color(rng, &ray, world)
+        let ray = Ray::new(ray_origin, ray_direction, rng.next_f64());
+        return self.ray_color(rng, &ray, world);
     }
     fn ray_color(&self, rng: &mut Rng, ray: &Ray, world: &Box<dyn Hittable>) -> Color {
         fn ray_color_inner(
