@@ -205,36 +205,6 @@ pub struct Camera {
 }
 
 impl Camera {
-    // pub fn render(&self, world: &Box<dyn Hittable>) {
-    //     let progress_interval = 1000;
-    //     let start_time = Instant::now();
-    //     let pixel_count = self.image_width * self.image_height;
-    //     let mut image_buffer = vec![Color::black(); pixel_count];
-
-    //     let mut rng = Rng::from_seed([123, 128]);
-    //     let mut rng = rng.short_jump();
-
-    //     let mut threshold = 0;
-
-    //     let threads = thread::available_parallelism().unwrap();
-    //     let lines_per_thread = self.image_height / (usize::from(threads) * 2);
-    //     thread::scope(|s| {
-    //         for (j, chunk) in image_buffer
-    //             .chunks_mut(self.image_width * lines_per_thread)
-    //             .enumerate()
-    //         {
-    //             // let inner_rng = rng.clone().short_jump().clone();
-    //             let inner_rng = rng.clone();
-    //             let j_offset = j * lines_per_thread;
-    //             let lines_per_thread = lines_per_thread.min(self.image_height - j_offset);
-
-    //             s.spawn(move || {
-    //                 self.render_scanlines(inner_rng, j_offset, lines_per_thread, world, chunk)
-    //             });
-    //         }
-    //     });
-    //     self.write_buffer_to_file(&image_buffer).unwrap();
-    // }
     pub fn render(
         &self,
         world: &Box<dyn Hittable>,
