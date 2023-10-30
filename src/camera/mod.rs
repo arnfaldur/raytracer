@@ -1,10 +1,10 @@
 use std::fs::File;
 use std::io::{BufWriter, Write};
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::mpsc::{channel, sync_channel, Sender, SyncSender};
+use std::sync::mpsc::{sync_channel, SyncSender};
 use std::sync::Arc;
-use std::time::{Instant, UNIX_EPOCH};
-use std::{default, thread, time};
+use std::time::{Instant};
+use std::{thread};
 
 use crate::random::Rng;
 use crate::{
@@ -14,207 +14,14 @@ use crate::{
     vec3::{Point3, Vec3},
 };
 
-enum PixelSampler {
+pub mod builder;
+pub mod image;
+
+pub enum PixelSampler {
     Uniform(usize),
     Random(usize),
 }
 
-#[derive(Default, Debug)]
-pub struct ImageSpecBuilder {
-    width: Option<usize>,
-    height: Option<usize>,
-    aspect_ratio: Option<f64>,
-}
-
-impl ImageSpecBuilder {
-    pub fn width(mut self, width: usize) -> Self {
-        self.width = Some(width);
-        self
-    }
-    pub fn height(mut self, height: usize) -> Self {
-        self.height = Some(height);
-        self
-    }
-    pub fn aspect_ratio(mut self, aspect_ratio: f64) -> Self {
-        self.aspect_ratio = Some(aspect_ratio);
-        self
-    }
-    pub fn build(self) -> ImageSpec {
-        match self {
-            ImageSpecBuilder {
-                width: Some(width),
-                height: Some(height),
-                aspect_ratio: None,
-            } => ImageSpec {
-                width,
-                height,
-                aspect_ratio: width as f64 / height as f64,
-            },
-            ImageSpecBuilder {
-                width: Some(width),
-                height: None,
-                aspect_ratio: Some(aspect_ratio),
-            } => ImageSpec {
-                width,
-                height: ((width as f64 / aspect_ratio) as usize).max(1),
-                aspect_ratio,
-            },
-            ImageSpecBuilder {
-                width: None,
-                height: Some(height),
-                aspect_ratio: Some(aspect_ratio),
-            } => ImageSpec {
-                width: ((aspect_ratio / height as f64) as usize).max(1),
-                height,
-                aspect_ratio,
-            },
-            _ => panic!("image spec must have exactly one missing field {:?}", self),
-        }
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct ImageSpec {
-    pub width: usize,
-    pub height: usize,
-    pub aspect_ratio: f64,
-}
-
-#[derive(Default)]
-pub struct CameraBuilder {
-    image_spec: Option<ImageSpec>,
-
-    pixel_sampler: Option<PixelSampler>,
-    max_ray_depth: Option<usize>,
-
-    field_of_view: Option<f64>,
-    lookfrom: Option<Point3>,
-    lookat: Option<Point3>,
-    up_vector: Option<Vec3>,
-
-    defocus_angle: Option<f64>,
-    focus_distance: Option<f64>,
-}
-
-macro_rules! builder_field_mut {
-    ($field:ident, $type:ty) =>
-        (pub fn $field(mut self, $field: $type) -> Self {
-            self.$field = Some($field);
-            self
-        })
-}
-macro_rules! builder_field {
-    ($field:ident, $type:ty) =>
-        (pub fn $field(mut self, $field: $type) -> Self {
-            Self {
-                $field: Some($field),
-                ..self
-            }
-        })
-}
-
-impl CameraBuilder {
-    builder_field!{image_spec, ImageSpec}
-    builder_field!{max_ray_depth, usize}
-    builder_field!{field_of_view, f64}
-    builder_field!{lookfrom, Point3}
-    builder_field!{lookat, Point3}
-    builder_field!{up_vector, Vec3}
-    builder_field!{defocus_angle, f64}
-    builder_field!{focus_distance, f64}
-    pub fn uniform_sampler(self, samples_per_pixel: usize) -> Self {
-        Self {
-            pixel_sampler: Some(PixelSampler::Uniform(samples_per_pixel)),
-            ..self
-        }
-    }
-    pub fn random_sampler(mut self, samples_per_pixel: usize) -> Self {
-        Self {
-            pixel_sampler: Some(PixelSampler::Random(samples_per_pixel)),
-            ..self
-        }
-    }
-    pub fn build(self) -> Camera {
-        let image_spec = self
-            .image_spec
-            .expect("The image specifications must be set");
-        let pixel_sampler = match self
-            .pixel_sampler
-            .expect("The samples per pixel must be set")
-        {
-            PixelSampler::Uniform(samples_per_pixel) => {
-                let samples_sqrt = (samples_per_pixel as f64).sqrt();
-                if samples_sqrt.fract() != 0.0 {
-                    panic!("samples_per_pixel in the grid sampler must be a square number, current value: {}", samples_per_pixel);
-                }
-                PixelSampler::Uniform(samples_sqrt as usize)
-            }
-            PixelSampler::Random(samples_per_pixel) => PixelSampler::Random(samples_per_pixel),
-        };
-        let depth = self.max_ray_depth.expect("The depth must be set");
-
-        let field_of_view = self.field_of_view.unwrap_or(90.0);
-        let lookfrom = self.lookfrom.unwrap_or(Point3::new(0., 0., 0.));
-        let lookat = self.lookat.unwrap_or(Point3::new(0., 0., -1.));
-        let up_vector = self.up_vector.unwrap_or(Vec3::new(0., 1., 0.));
-
-        let defocus_angle = self.defocus_angle.unwrap_or(0.0);
-        let focus_distance = self.focus_distance.unwrap_or(lookfrom.distance(&lookat));
-
-        // Actual initialization
-
-        let center = lookfrom;
-
-        //let focal_length = (lookfrom - lookat).length();
-        let theta = field_of_view.to_radians();
-        let h = (theta / 2.0).tan();
-        let viewport_height = 2.0 * h * focus_distance;
-        let viewport_width = viewport_height * image_spec.width as f64 / image_spec.height as f64;
-
-        let w = (lookfrom - lookat).unit_vector();
-        let u = up_vector.cross(&w).unit_vector();
-        let v = w.cross(&u);
-
-        let viewport_u = (viewport_width * u);
-        let viewport_v = viewport_height * -v;
-
-        let pixel_delta_u = viewport_u / image_spec.width as f64;
-        let pixel_delta_v = viewport_v / image_spec.height as f64;
-
-        let viewport_upper_left = center - (focus_distance * w) - viewport_u / 2. - viewport_v / 2.;
-        let pixel00_loc = viewport_upper_left + 0.5 * (pixel_delta_u + pixel_delta_v);
-
-        let defocus_radius = focus_distance * (defocus_angle / 2.0).to_radians().tan();
-        let defocus_disk_u = defocus_radius * u;
-        let defocus_disk_v = defocus_radius * v;
-        Camera {
-            aspect_ratio: image_spec.aspect_ratio,
-            image_width: image_spec.width,
-            pixel_sampler,
-            depth,
-
-            field_of_view,
-            lookfrom,
-            lookat,
-            up_vector,
-
-            defocus_angle,
-            focus_distance,
-
-            image_height: image_spec.height,
-            center,
-            pixel00_loc,
-            pixel_delta_u,
-            pixel_delta_v,
-            w,
-            u,
-            v,
-
-            defocus_disk_u,
-            defocus_disk_v,
-        }
-    }
-}
 pub struct Camera {
     aspect_ratio: f64,
     pub image_width: usize,
@@ -248,7 +55,6 @@ impl Camera {
         world: &Box<dyn Hittable>,
         sender: SyncSender<((usize, usize), (usize, usize), Vec<Color>)>,
     ) {
-        let progress_interval = 1000;
         let start_time = Instant::now();
         let pixel_count = self.image_width * self.image_height;
         let mut image_buffer = vec![Color::black(); pixel_count];
@@ -256,15 +62,11 @@ impl Camera {
         let mut rng = Rng::from_seed([123, 128]);
         let mut rng = rng.short_jump();
 
-        let mut threshold = 0;
-
-        let threads: usize = thread::available_parallelism().unwrap().into();
-        let rect = (64, 64);
+        let threads = usize::from(thread::available_parallelism().unwrap());
         let rect = (32, 32);
         let rect_count = self.image_height.div_ceil(rect.0) * self.image_width.div_ceil(rect.1);
         thread::scope(|s| {
             let get_parameters = |index: usize| {
-                let by = self.image_height.div_ceil(rect.0);
                 let bx = self.image_width.div_ceil(rect.1);
                 let rect_y = index / bx;
                 let rect_x = index % bx;
@@ -280,7 +82,7 @@ impl Camera {
             let shared_index = Arc::new(AtomicUsize::new(0));
 
             let (worker_sender, delegator_receiver) = sync_channel(1);
-            for thread in 0..threads {
+            for _thread in 0..threads {
                 let shared_index = shared_index.clone();
                 let worker_sender = worker_sender.clone();
                 s.spawn(move || {
@@ -289,7 +91,6 @@ impl Camera {
                         if idx >= rect_count {
                             break;
                         }
-
                         let (rng, top_left, rect, world) = get_parameters(idx);
                         let result = self.render_rect(rng, top_left, rect, world);
                         if let Err(_) = worker_sender.send((top_left, rect, result)) {
@@ -319,7 +120,7 @@ impl Camera {
 
     fn render_rect(
         &self,
-        mut rng: Rng,
+        rng: Rng,
         top_left: (usize, usize),
         rect: (usize, usize),
         world: &Box<dyn Hittable>,
@@ -340,26 +141,6 @@ impl Camera {
         return result;
     }
 
-    fn render_scanlines(
-        &self,
-        mut rng: Rng,
-        j_offset: usize,
-        scanlines: usize,
-        world: &Box<dyn Hittable>,
-        image_buffer: &mut [Color],
-    ) {
-        for j in 0..scanlines {
-            for i in 0..self.image_width {
-                let mut rng = rng.clone();
-                let color = self.sample_pixel(&mut rng, j_offset + j, i, world);
-
-                let gamma_corrected = color.gamma_corrected(2.2);
-
-                let index = (j * self.image_width) + i;
-                image_buffer[index] = gamma_corrected;
-            }
-        }
-    }
     fn sample_pixel(&self, rng: &mut Rng, j: usize, i: usize, world: &Box<dyn Hittable>) -> Color {
         let mut accumulator = Color::black();
 

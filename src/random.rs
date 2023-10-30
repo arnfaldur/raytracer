@@ -18,7 +18,7 @@ impl Rng {
     pub fn next_u64(&mut self) -> u64 {
         let a = self.state[0];
         let b = self.state[1];
-        let result = (a.wrapping_add(b));
+        let result = a.wrapping_add(b);
 
         let c = b.bitxor(a);
         self.state[0] = a.rotate_left(24).bitxor(c).bitxor(c << 16);

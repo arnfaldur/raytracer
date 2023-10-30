@@ -38,7 +38,6 @@ pub(crate) fn sdl_thread(
 
     canvas.present();
     let mut event_pump = sdl_context.event_pump().unwrap();
-    let mut i = 0;
     'running: loop {
         for event in event_pump.poll_iter() {
             match event {
@@ -56,7 +55,7 @@ pub(crate) fn sdl_thread(
         }
         while let Ok((top_left, size, result)) = receiver.try_recv() {
             texture
-                .with_lock(None, |buffer: &mut [u8], pitch: usize| {
+                .with_lock(None, |buffer: &mut [u8], _pitch: usize| {
                     for dy in 0..size.0 {
                         for dx in 0..size.1 {
                             let index = (((top_left.0 + dy) * image_width) + (top_left.1 + dx)) * 3;

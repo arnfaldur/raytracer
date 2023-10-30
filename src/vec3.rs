@@ -1,7 +1,7 @@
 use std::{
     f64,
     fmt::Debug,
-    ops::{Add, Div, Mul, Neg, Range, Sub},
+    ops::{Add, Div, Mul, Neg, Sub},
 };
 
 use crate::{color::Color, random::Rng};

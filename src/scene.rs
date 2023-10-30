@@ -1,9 +1,10 @@
 use std::sync::{mpsc::SyncSender, Arc};
 
 use crate::{
-    camera::{Camera, CameraBuilder},
+    camera::{builder::CameraBuilder, Camera},
     color::Color,
-    hittable::{Dielectric, Hittable, HittableList, Lambertian, Metal, Sphere},
+    hittable::{Dielectric, Hittable, HittableList, Lambertian, Metal, Sphere, Material},
+    random::Rng,
     vec3::{Point3, Vec3},
 };
 
@@ -72,5 +73,69 @@ pub fn composition(camera_builder: CameraBuilder) -> Scene<Box<dyn Hittable>> {
         0.5,
         Arc::new(Metal::new(Color::gray(0.7), 0.0)),
     )));
-    return Scene::new(camera, world);
+    return Scene { camera, world };
+}
+
+pub fn book_cover(camera_builder: CameraBuilder) -> Scene<Box<dyn Hittable>> {
+    let camera = camera_builder
+        .field_of_view(20.0)
+        .lookfrom(Point3::new(13.0, 2.0, 3.0))
+        .lookat(Point3::new(0.0, 0.0, 0.0))
+        .up_vector(Vec3::new(0.0, 1.0, 0.0))
+        .defocus_angle(0.6)
+        .focus_distance(10.0)
+        .build();
+
+    let mut rng = Rng::from_seed([42, 1337]);
+    let mut world = Box::new(HittableList::default());
+    let ground_material = Arc::new(Lambertian::from(Color::new(0.5, 0.5, 0.5)));
+    world.add(Box::new(Sphere::new(
+        Point3::new(0.0, -1000.0, 0.0),
+        1000.0,
+        ground_material,
+    )));
+
+    for a in -0..7 {
+        for b in -0..3 {
+            let choose_mat = rng.next_f64();
+            let center = Point3::new(
+                a as f64 + 0.9 * rng.next_f64(),
+                0.2,
+                b as f64 + 0.9 * rng.next_f64(),
+            );
+            if (center - Point3::new(4.0, 0.2, 0.0)).length() > 0.9 {
+                let sphere_material: Arc<dyn Material> = if choose_mat < 0.7 {
+                    // diffuse
+                    let albedo = Color::random(&mut rng) * Color::random(&mut rng);
+                    Arc::new(Lambertian::from(albedo))
+                } else if choose_mat < 0.9 {
+                    // metal
+                    let albedo = Color::random(&mut rng) / 2.0 + 0.5;
+                    let fuzz = rng.next_f64_range(0.0..0.5);
+                    Arc::new(Metal::new(albedo, fuzz))
+                } else {
+                    // glass
+                    Arc::new(Dielectric::new(1.5))
+                };
+                world.add(Box::new(Sphere::new(center, 0.2, sphere_material)));
+            }
+        }
+    }
+
+    world.add(Box::new(Sphere::new(
+        Point3::new(0.0, 1.0, 0.0),
+        1.0,
+        Arc::new(Dielectric::new(1.5)),
+    )));
+    world.add(Box::new(Sphere::new(
+        Point3::new(-4.0, 1.0, 0.0),
+        1.0,
+        Arc::new(Lambertian::from(Color::new(0.4, 0.2, 0.1))),
+    )));
+    world.add(Box::new(Sphere::new(
+        Point3::new(4.0, 1.0, 0.0),
+        1.0,
+        Arc::new(Metal::new(Color::new(0.7, 0.6, 0.5), 0.0)),
+    )));
+    return Scene { camera, world };
 }
