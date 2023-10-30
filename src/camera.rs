@@ -19,9 +19,71 @@ enum PixelSampler {
     Random(usize),
 }
 
-pub struct CameraBuilder {
+#[derive(Default, Debug)]
+pub struct ImageSpecBuilder {
+    width: Option<usize>,
+    height: Option<usize>,
     aspect_ratio: Option<f64>,
-    image_width: Option<usize>,
+}
+
+impl ImageSpecBuilder {
+    pub fn width(mut self, width: usize) -> Self {
+        self.width = Some(width);
+        self
+    }
+    pub fn height(mut self, height: usize) -> Self {
+        self.height = Some(height);
+        self
+    }
+    pub fn aspect_ratio(mut self, aspect_ratio: f64) -> Self {
+        self.aspect_ratio = Some(aspect_ratio);
+        self
+    }
+    pub fn build(self) -> ImageSpec {
+        match self {
+            ImageSpecBuilder {
+                width: Some(width),
+                height: Some(height),
+                aspect_ratio: None,
+            } => ImageSpec {
+                width,
+                height,
+                aspect_ratio: width as f64 / height as f64,
+            },
+            ImageSpecBuilder {
+                width: Some(width),
+                height: None,
+                aspect_ratio: Some(aspect_ratio),
+            } => ImageSpec {
+                width,
+                height: ((width as f64 / aspect_ratio) as usize).max(1),
+                aspect_ratio,
+            },
+            ImageSpecBuilder {
+                width: None,
+                height: Some(height),
+                aspect_ratio: Some(aspect_ratio),
+            } => ImageSpec {
+                width: ((aspect_ratio / height as f64) as usize).max(1),
+                height,
+                aspect_ratio,
+            },
+            _ => panic!("image spec must have exactly one missing field {:?}", self),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct ImageSpec {
+    pub width: usize,
+    pub height: usize,
+    pub aspect_ratio: f64,
+}
+
+#[derive(Default)]
+pub struct CameraBuilder {
+    image_spec: Option<ImageSpec>,
+
     pixel_sampler: Option<PixelSampler>,
     max_ray_depth: Option<usize>,
 
@@ -34,70 +96,48 @@ pub struct CameraBuilder {
     focus_distance: Option<f64>,
 }
 
+macro_rules! builder_field_mut {
+    ($field:ident, $type:ty) =>
+        (pub fn $field(mut self, $field: $type) -> Self {
+            self.$field = Some($field);
+            self
+        })
+}
+macro_rules! builder_field {
+    ($field:ident, $type:ty) =>
+        (pub fn $field(mut self, $field: $type) -> Self {
+            Self {
+                $field: Some($field),
+                ..self
+            }
+        })
+}
+
 impl CameraBuilder {
-    pub fn new() -> Self {
+    builder_field!{image_spec, ImageSpec}
+    builder_field!{max_ray_depth, usize}
+    builder_field!{field_of_view, f64}
+    builder_field!{lookfrom, Point3}
+    builder_field!{lookat, Point3}
+    builder_field!{up_vector, Vec3}
+    builder_field!{defocus_angle, f64}
+    builder_field!{focus_distance, f64}
+    pub fn uniform_sampler(self, samples_per_pixel: usize) -> Self {
         Self {
-            aspect_ratio: None,
-            image_width: None,
-            pixel_sampler: None,
-            max_ray_depth: None,
-
-            field_of_view: None,
-            lookfrom: None,
-            lookat: None,
-            up_vector: None,
-
-            defocus_angle: None,
-            focus_distance: None,
+            pixel_sampler: Some(PixelSampler::Uniform(samples_per_pixel)),
+            ..self
         }
     }
-    pub fn aspect_ratio(mut self, aspect_ratio: f64) -> Self {
-        self.aspect_ratio = Some(aspect_ratio);
-        self
-    }
-    pub fn image_width(mut self, image_width: usize) -> Self {
-        self.image_width = Some(image_width);
-        self
-    }
-    pub fn uniform_sampler(mut self, samples_per_pixel: usize) -> Self {
-        self.pixel_sampler = Some(PixelSampler::Uniform(samples_per_pixel));
-        self
-    }
     pub fn random_sampler(mut self, samples_per_pixel: usize) -> Self {
-        self.pixel_sampler = Some(PixelSampler::Random(samples_per_pixel));
-        self
-    }
-    pub fn max_ray_depth(mut self, max_ray_depth: usize) -> Self {
-        self.max_ray_depth = Some(max_ray_depth);
-        self
-    }
-    pub fn field_of_view(mut self, field_of_view: f64) -> Self {
-        self.field_of_view = Some(field_of_view);
-        self
-    }
-    pub fn lookfrom(mut self, lookfrom: Point3) -> Self {
-        self.lookfrom = Some(lookfrom);
-        self
-    }
-    pub fn lookat(mut self, lookat: Point3) -> Self {
-        self.lookat = Some(lookat);
-        self
-    }
-    pub fn up_vector(mut self, up_vector: Vec3) -> Self {
-        self.up_vector = Some(up_vector);
-        self
-    }
-    pub fn defocus_angle(mut self, defocus_angle: f64) -> Self {
-        self.defocus_angle = Some(defocus_angle);
-        self
-    }
-    pub fn focus_distance(mut self, focus_distance: f64) -> Self {
-        self.focus_distance = Some(focus_distance);
-        self
+        Self {
+            pixel_sampler: Some(PixelSampler::Random(samples_per_pixel)),
+            ..self
+        }
     }
     pub fn build(self) -> Camera {
-        let aspect_ratio = self.aspect_ratio.expect("The aspect ratio must be set");
-        let image_width = self.image_width.expect("The image width must be set");
+        let image_spec = self
+            .image_spec
+            .expect("The image specifications must be set");
         let pixel_sampler = match self
             .pixel_sampler
             .expect("The samples per pixel must be set")
@@ -123,15 +163,13 @@ impl CameraBuilder {
 
         // Actual initialization
 
-        let image_height = ((image_width as f64 / aspect_ratio) as usize).max(1);
-
         let center = lookfrom;
 
         //let focal_length = (lookfrom - lookat).length();
         let theta = field_of_view.to_radians();
         let h = (theta / 2.0).tan();
         let viewport_height = 2.0 * h * focus_distance;
-        let viewport_width = viewport_height * image_width as f64 / image_height as f64;
+        let viewport_width = viewport_height * image_spec.width as f64 / image_spec.height as f64;
 
         let w = (lookfrom - lookat).unit_vector();
         let u = up_vector.cross(&w).unit_vector();
@@ -140,8 +178,8 @@ impl CameraBuilder {
         let viewport_u = (viewport_width * u);
         let viewport_v = viewport_height * -v;
 
-        let pixel_delta_u = viewport_u / image_width as f64;
-        let pixel_delta_v = viewport_v / image_height as f64;
+        let pixel_delta_u = viewport_u / image_spec.width as f64;
+        let pixel_delta_v = viewport_v / image_spec.height as f64;
 
         let viewport_upper_left = center - (focus_distance * w) - viewport_u / 2. - viewport_v / 2.;
         let pixel00_loc = viewport_upper_left + 0.5 * (pixel_delta_u + pixel_delta_v);
@@ -150,8 +188,8 @@ impl CameraBuilder {
         let defocus_disk_u = defocus_radius * u;
         let defocus_disk_v = defocus_radius * v;
         Camera {
-            aspect_ratio,
-            image_width,
+            aspect_ratio: image_spec.aspect_ratio,
+            image_width: image_spec.width,
             pixel_sampler,
             depth,
 
@@ -163,7 +201,7 @@ impl CameraBuilder {
             defocus_angle,
             focus_distance,
 
-            image_height,
+            image_height: image_spec.height,
             center,
             pixel00_loc,
             pixel_delta_u,

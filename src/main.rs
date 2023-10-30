@@ -11,19 +11,21 @@ use crate::color::Color;
 use crate::hittable::{Dielectric, HittableList, Lambertian, Metal, Sphere};
 use crate::ray::Ray;
 use crate::vec3::{Point3, Vec3};
+use camera::{ImageSpecBuilder};
 use hittable::{Hittable, Material};
 use random::Rng;
 
 mod camera;
 mod color;
 mod hittable;
-mod ui;
 mod random;
 mod range;
 mod ray;
-mod vec3;
 mod scene;
+mod ui;
+mod vec3;
 
+use scene::{composition, Scene};
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::PixelFormatEnum;
@@ -31,43 +33,38 @@ use sdl2::rect::Rect;
 use std::time::Duration;
 
 fn main() {
-    let camera = CameraBuilder::new()
-        .aspect_ratio(16.0 / 9.0)
+    let image_spec = ImageSpecBuilder::default()
+        .width(3840 / 3)
         .aspect_ratio((16.0 / 3.) / (9.0 / 2.))
-        // .aspect_ratio(1.0)
-        .field_of_view(55.0)
-        .image_width(768)
-        .image_width(1920)
-        .image_width(3840 / 6)
-        //.image_width(3840)
-        .uniform_sampler(3_usize.pow(2))
+        .build();
+    let camera = CameraBuilder::default()
+        .image_spec(image_spec.clone())
+        .uniform_sampler(6_usize.pow(2))
         .max_ray_depth(10)
         //.random_sampler(9_usize.pow(2))
-        .lookfrom(Point3::new(0.0, 0.5, 1.0) * 1.5)
-        .lookat(Point3::new(0.0, 0.3, 0.0))
-        .up_vector(Vec3::new(0.0, 1.0, 0.0))
         .defocus_angle(0.0)
         //.focus_distance(6.5)
-        .build();
+     ;
 
     std::thread::scope(|s| {
         let (sender, receiver) = std::sync::mpsc::sync_channel(64);
         s.spawn(move || {
-            ui::sdl_thread(camera.image_width, camera.image_height, receiver);
+            ui::sdl_thread(image_spec.width, image_spec.height, receiver);
         });
         s.spawn(move || {
-            render_thread(camera, sender);
+            let scene = composition(camera);
+            render_thread(scene, sender);
         });
     });
 }
 
 fn render_thread(
-    camera: Camera,
+    scene: Scene<Box<dyn Hittable>>,
+    // camera: Camera,
     sender: SyncSender<((usize, usize), (usize, usize), Vec<Color>)>,
 ) -> std::io::Result<()> {
     let start_time = Instant::now();
 
-    let world = composition();
     // let camera = CameraBuilder::new()
     //     .aspect_ratio(16.0 / 9.0)
     //     // .aspect_ratio(1.0)
@@ -86,9 +83,7 @@ fn render_thread(
 
     // let world = book_cover();
 
-    let world = world as Box<dyn Hittable>;
-
-    camera.render(&world, sender);
+    scene.render(sender);
 
     let elapsed = start_time.elapsed().as_secs_f64();
     println!("Done in {:.3} seconds", elapsed);
@@ -195,52 +190,6 @@ fn fov_test() -> Box<HittableList> {
         Point3::new(-r, 0., -1.),
         r,
         Arc::new(Lambertian::from(Color::new(0.0, 0.0, 1.0))),
-    )));
-    return world;
-}
-fn composition() -> Box<HittableList> {
-    let mut world = Box::new(HittableList::default());
-
-    // Ground
-    world.add(Box::new(Sphere::new(
-        Point3::new(0., -40_000_000.5, 0.),
-        40_000_000.,
-        Arc::new(Lambertian::from(Color::new(0.05, 0.20, 0.07))),
-    )));
-
-    let blue_lamb = Arc::new(Lambertian::from(Color::new(0.1, 0.1, 0.8)));
-    let red_lamb = Arc::new(Lambertian::from(Color::new(0.8, 0.1, 0.1)));
-
-    // // Ballz
-    world.add(Box::new(Sphere::new(
-        Point3::new(0., 0., -1.),
-        0.5,
-        red_lamb,
-    )));
-    world.add(Box::new(Sphere::new(
-        Point3::new(1.3, 0., -1.7),
-        0.5,
-        blue_lamb,
-    )));
-    world.add(Box::new(Sphere::new(
-        Point3::new(-0.25 - 0.125, -0.25, -0.5),
-        0.25,
-        Arc::new(Dielectric::new(1.5)),
-    )));
-    world.add(Box::new(Sphere::new(
-        Point3::new(-0.25 - 0.125, -0.25, -0.5),
-        -0.20,
-        Arc::new(Dielectric::new(1.5)),
-    )));
-    world.add(Box::new(Sphere::new(
-        Point3::new(0.6, 0.1, -0.4),
-        0.3,
-        Arc::new(Dielectric::new(1.5)),
-    )));
-    world.add(Box::new(Sphere::new(
-        Point3::new(-1.0, 0., -1.0),
-        0.5,
-        Arc::new(Metal::new(Color::gray(0.7), 0.0)),
     )));
     return world;
 }
