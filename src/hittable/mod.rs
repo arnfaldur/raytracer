@@ -1,6 +1,6 @@
 use std::{
     cmp::Ordering,
-    f64::NEG_INFINITY,
+    f64::{INFINITY, NEG_INFINITY},
     fmt::Debug,
     ops::{Neg, Range},
     slice::IterMut,
@@ -205,6 +205,45 @@ impl BVHNode {
                 bounding_box,
             })
         } else {
+            // let axis = {
+            //     let mut result = 0;
+            //     let mut max_variance = NEG_INFINITY;
+            //     for i in 0..3 {
+            //         let variance = (objects
+            //             .split_at(start)
+            //             .1
+            //             .iter()
+            //             .map(|x| x.bounding_box().axis(i).middle().powi(2))
+            //             .sum::<f64>()
+            //             - (objects
+            //                 .split_at(start)
+            //                 .1
+            //                 .iter()
+            //                 .map(|x| x.bounding_box().axis(i).middle())
+            //                 .sum::<f64>()
+            //                 .powi(2)
+            //                 / length as f64))
+            //             / length as f64;
+            //         if variance > max_variance {
+            //             result = i;
+            //             max_variance = variance;
+            //         }
+            //     }
+            //     result
+            // };
+            let (axis, _) = (0..3).fold((0, NEG_INFINITY), |(prev_axid, highest_diff), axid| {
+                let (min, max) = objects
+                    .split_at(start)
+                    .1
+                    .iter()
+                    .map(|o| o.bounding_box().axis(axid).middle())
+                    .fold((INFINITY, NEG_INFINITY), |(min, max), next| {
+                        (min.min(next), max.max(next))
+                    });
+                ((max - min) > highest_diff)
+                    .then(|| (axid, max - min))
+                    .unwrap_or_else(|| (prev_axid, highest_diff))
+            });
             let comparator = |a: &_, b: &_| BVHNode::box_compare(a, b, axis);
             let mean = objects
                 .split_at(start)
