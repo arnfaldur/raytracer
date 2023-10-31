@@ -142,6 +142,9 @@ impl Camera {
 
     fn sample_pixel(&self, rng: &mut Rng, j: usize, i: usize, world: &Box<dyn Hittable>) -> Color {
         let mut accumulator = Color::black();
+        // let mut rngx = Rng::from_seed([j as u64 + 1, i as u64 + 1]);
+        // //let mut rngx = Rng::new();
+        // let rng = &mut rngx;
 
         match self.pixel_sampler {
             PixelSampler::Uniform(samples_sqrt) => {
@@ -153,27 +156,24 @@ impl Camera {
                         let dy = j as f64 + yi as f64 * subpixel_interval - subpixel_offset;
                         let dx = i as f64 + xi as f64 * subpixel_interval - subpixel_offset;
 
-                        accumulator += self.sample_at(rng, dx, dy, world);
+                        accumulator += self.sample_point(rng, dx, dy, world);
                     }
                 }
                 accumulator / samples_sqrt.pow(2) as f64
             }
             PixelSampler::Random(samples) => {
-                //let mut rng = rng.clone();
                 for _ in 0..samples {
-                    //rng.short_jump();
-                    //let mut rng = rng.clone();
                     let dy = j as f64 + rng.next_f64_range(-0.5..0.5);
                     let dx = i as f64 + rng.next_f64_range(-0.5..0.5);
 
-                    accumulator += self.sample_at(rng, dx, dy, world);
+                    accumulator += self.sample_point(rng, dx, dy, world);
                 }
                 accumulator / samples as f64
             }
         }
     }
 
-    fn sample_at(&self, rng: &mut Rng, dx: f64, dy: f64, world: &Box<dyn Hittable>) -> Color {
+    fn sample_point(&self, rng: &mut Rng, dx: f64, dy: f64, world: &Box<dyn Hittable>) -> Color {
         let pixel_center = self.pixel00_loc + (dx * self.pixel_delta_u) + (dy * self.pixel_delta_v);
         let ray_origin = if self.defocus_angle <= 0.0 {
             self.center

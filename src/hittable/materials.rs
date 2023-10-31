@@ -1,17 +1,18 @@
-use super::HitRecord;
-use crate::color::Color;
-use crate::random::Rng;
-use crate::ray::Ray;
-use crate::vec3::Vec3;
 use std::{
+    fmt::Debug,
     ops::{Neg, Range},
     sync::Arc,
-    fmt::Debug,
 };
+
+use super::{
+    texture::{SolidColor, Texture},
+    HitRecord,
+};
+use crate::{color::Color, random::Rng, ray::Ray, vec3::Vec3};
 
 #[derive(Debug)]
 pub struct Lambertian {
-    pub(crate) albedo: Color,
+    pub albedo: Arc<dyn Texture>,
 }
 
 impl Lambertian {
@@ -21,17 +22,11 @@ impl Lambertian {
 }
 
 pub trait Material: Sync + Send + Debug {
-    fn scatter(&self, rng: &mut Rng, ray: &Ray, hit_record: &HitRecord)
-        -> Option<(Color, Ray)>;
+    fn scatter(&self, rng: &mut Rng, ray: &Ray, hit_record: &HitRecord) -> Option<(Color, Ray)>;
 }
 
 impl Material for Lambertian {
-    fn scatter(
-        &self,
-        rng: &mut Rng,
-        ray: &Ray,
-        hit_record: &HitRecord,
-    ) -> Option<(Color, Ray)> {
+    fn scatter(&self, rng: &mut Rng, ray: &Ray, hit_record: &HitRecord) -> Option<(Color, Ray)> {
         let scatter_direction = hit_record.normal + Vec3::random_on_unit_sphere(rng);
         let scatter_direction = if scatter_direction.near_zero() {
             hit_record.normal
@@ -39,12 +34,23 @@ impl Material for Lambertian {
             scatter_direction
         };
         let scattered_ray = Ray::new(hit_record.point, scatter_direction, ray.time);
-        return Some((self.albedo, scattered_ray));
+        return Some((
+            self.albedo
+                .value(hit_record.u, hit_record.v, &hit_record.point),
+            scattered_ray,
+        ));
     }
 }
 
 impl From<Color> for Lambertian {
     fn from(value: Color) -> Self {
+        Self {
+            albedo: Arc::new(SolidColor::from(value)),
+        }
+    }
+}
+impl From<Arc<dyn Texture>> for Lambertian {
+    fn from(value: Arc<dyn Texture>) -> Self {
         Self { albedo: value }
     }
 }
@@ -65,12 +71,7 @@ impl Metal {
 }
 
 impl Material for Metal {
-    fn scatter(
-        &self,
-        rng: &mut Rng,
-        ray: &Ray,
-        hit_record: &HitRecord,
-    ) -> Option<(Color, Ray)> {
+    fn scatter(&self, rng: &mut Rng, ray: &Ray, hit_record: &HitRecord) -> Option<(Color, Ray)> {
         let reflected = ray.direction.reflect(&hit_record.normal);
         let scatter_direction = reflected + self.fuzz * Vec3::random_on_unit_sphere(rng);
         let scattered_ray = Ray::new(hit_record.point, scatter_direction, ray.time);
@@ -101,12 +102,7 @@ impl Dielectric {
 }
 
 impl Material for Dielectric {
-    fn scatter(
-        &self,
-        rng: &mut Rng,
-        ray: &Ray,
-        hit_record: &HitRecord,
-    ) -> Option<(Color, Ray)> {
+    fn scatter(&self, rng: &mut Rng, ray: &Ray, hit_record: &HitRecord) -> Option<(Color, Ray)> {
         let refraction_ratio = if hit_record.front_face {
             1.0 / self.index_of_refraction
         } else {

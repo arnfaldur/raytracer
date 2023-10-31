@@ -4,8 +4,15 @@ use crate::{
     camera::{builder::CameraBuilder, Camera},
     color::Color,
     hittable::{
-        materials::Dielectric, materials::Lambertian, materials::Material, materials::Metal,
-        Hittable, HittableList, MovingSphere, Sphere,
+        containers::HittableList,
+        geometry::MovingSphere,
+        geometry::Sphere,
+        materials::Dielectric,
+        materials::Lambertian,
+        materials::Material,
+        materials::Metal,
+        texture::{CheckerTexture, SolidColor, Texture, ImageTexture, NoiseTexture},
+        Hittable,
     },
     random::Rng,
     vec3::{Point3, Vec3},
@@ -91,7 +98,13 @@ pub fn book_cover(camera_builder: CameraBuilder) -> Scene<Box<dyn Hittable>> {
 
     let mut rng = Rng::from_seed([42, 1337]);
     let mut world = Box::new(HittableList::default());
-    let ground_material = Arc::new(Lambertian::from(Color::new(0.5, 0.5, 0.5)));
+    //let ground_material = Arc::new(Lambertian::from(Color::new(0.5, 0.5, 0.5)));
+    let checker_texture: Arc<dyn Texture> = Arc::new(CheckerTexture::new(
+        0.32,
+        Box::new(SolidColor::from(Color::new(0.2, 0.3, 0.1))),
+        Box::new(SolidColor::from(Color::new(0.9, 0.9, 0.9))),
+    ));
+    let ground_material = Arc::new(Lambertian::from(checker_texture));
     world.add(Box::new(Sphere::new(
         Point3::new(0.0, -1000.0, 0.0),
         1000.0,
@@ -198,4 +211,75 @@ fn fov_test() -> Box<HittableList> {
         Arc::new(Lambertian::from(Color::new(0.0, 0.0, 1.0))),
     )));
     return world;
+}
+
+pub fn two_spheres(camera_builder: CameraBuilder) -> Scene<Box<dyn Hittable>> {
+    let camera = camera_builder
+        .field_of_view(20.0)
+        .lookfrom(Point3::new(13.0, 2.0, 3.0))
+        .lookat(Point3::new(0.0, 0.0, 0.0))
+        .build();
+    let mut world = Box::new(HittableList::default());
+    let checker_texture: Arc<dyn Texture> = Arc::new(CheckerTexture::new(
+        0.3,
+        Box::new(SolidColor::from(Color::new(0.2, 0.3, 0.1))),
+        Box::new(SolidColor::from(Color::new(0.9, 0.9, 0.9))),
+    ));
+    let material = Arc::new(Lambertian::from(checker_texture.clone()));
+    world.add(Box::new(Sphere::new(
+        Point3::new(0.0, -10.0, 0.0),
+        10.0,
+        material.clone(),
+    )));
+    world.add(Box::new(Sphere::new(
+        Point3::new(0.0, 10.0, 0.0),
+        10.0,
+        material.clone(),
+    )));
+
+    return Scene::new(camera, world.into_bvh());
+}
+
+pub fn earth(camera_builder: CameraBuilder) -> Scene<Box<dyn Hittable>> {
+    let camera = camera_builder
+        .field_of_view(20.0)
+        .lookfrom(Point3::new(12.0, 0.0, 0.0))
+        .lookat(Point3::new(0.0, 0.0, 0.0))
+        .build();
+    let mut world = Box::new(HittableList::default());
+    let earth_image = image::open("images/earthmap.jpg").unwrap().to_rgba8();
+    let earth_texture: Arc<dyn Texture> = Arc::new(ImageTexture::new(earth_image));
+    let material = Arc::new(Lambertian::from(earth_texture.clone()));
+    world.add(Box::new(Sphere::new(
+        Point3::new(0.0, 0.0, 0.0),
+        2.0,
+        material.clone(),
+    )));
+
+    return Scene::new(camera, world.into_bvh());
+}
+
+pub fn something_blocky(camera_builder: CameraBuilder) -> Scene<Box<dyn Hittable>> {
+    let camera = camera_builder
+        .field_of_view(20.0)
+        .lookfrom(Point3::new(13.0, 2.0, 3.0))
+        .lookat(Point3::new(0.0, 0.0, 0.0))
+        .build();
+    let mut world = Box::new(HittableList::default());
+    let checker_texture: Arc<dyn Texture> = Arc::new(NoiseTexture::new(
+        0.3,
+    ));
+    let material = Arc::new(Lambertian::from(checker_texture.clone()));
+    world.add(Box::new(Sphere::new(
+        Point3::new(0.0, -1000.0, 0.0),
+        1000.0,
+        material.clone(),
+    )));
+    world.add(Box::new(Sphere::new(
+        Point3::new(0.0, 2.0, 0.0),
+        2.0,
+        material.clone(),
+    )));
+
+    return Scene::new(camera, world.into_bvh());
 }

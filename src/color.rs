@@ -33,6 +33,9 @@ impl Color {
     pub fn black() -> Self {
         Self::new(0., 0., 0.)
     }
+    pub fn cyan() -> Self {
+        Self::new(0., 1., 1.)
+    }
     pub fn dot(&self, rhs: &Self) -> Value {
         self.r * rhs.r + self.g * rhs.g + self.b * rhs.b
     }

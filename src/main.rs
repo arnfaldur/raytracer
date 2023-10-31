@@ -12,6 +12,8 @@ use random::Rng;
 use scene::{book_cover, composition, Scene};
 use vec3::{Point3, Vec3};
 
+use crate::scene::{two_spheres, earth, something_blocky};
+
 mod camera;
 mod color;
 mod hittable;
@@ -25,6 +27,7 @@ mod vec3;
 fn main() {
     let image_spec = ImageSpecBuilder::default()
         .width(3840 / 3)
+        //.width(3840 / 2)
         .aspect_ratio((16.0 / 3.) / (9.0 / 2.))
         .aspect_ratio(16.0 / 9.0)
         .build();
@@ -32,10 +35,11 @@ fn main() {
     let camera = CameraBuilder::default()
         .image_spec(image_spec.clone())
         .uniform_sampler(10_usize.pow(2))
+        .uniform_sampler(6_usize.pow(2))
         .max_ray_depth(16)
         //.random_sampler(9_usize.pow(2))
-        .defocus_angle(0.02)
-        //.focus_distance(6.5)
+        .defocus_angle(0.2)
+        //.focus_distance(10.0)
      ;
 
     std::thread::scope(|s| {
@@ -46,7 +50,8 @@ fn main() {
         s.spawn(move || {
             let start_time = Instant::now();
 
-            let scene = book_cover(camera);
+            // slet scene = two_spheres(camera);
+            let scene = something_blocky(camera);
             render_thread(scene, sender);
             let elapsed = start_time.elapsed().as_secs_f64();
             println!("Done in {:.3} seconds", elapsed);
