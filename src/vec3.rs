@@ -1,7 +1,7 @@
 use std::{
     f64,
     fmt::Debug,
-    ops::{Add, Div, Mul, Neg, Sub},
+    ops::{Add, Div, Mul, Neg, Sub, Index},
 };
 
 use crate::{color::Color, random::Rng};
@@ -92,6 +92,18 @@ impl Vec3 {
     }
     pub fn distance(&self, other: &Self) -> f64 {
         (*self - *other).length()
+    }
+}
+
+impl Index<usize> for Vec3 {
+    type Output = Value;
+    fn index(&self, index: usize) -> &Self::Output {
+        match index {
+            0 => &self.x,
+            1 => &self.y,
+            2 => &self.z,
+            _ => panic!("Index out of bounds"),
+        }
     }
 }
 

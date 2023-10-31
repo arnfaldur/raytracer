@@ -61,7 +61,7 @@ impl Camera {
         let mut image_buffer = vec![Color::black(); pixel_count];
 
         let threads = usize::from(thread::available_parallelism().unwrap());
-        let rect = (64, 64);
+        let rect = (32, 32);
         let rect_count = self.image_height.div_ceil(rect.0) * self.image_width.div_ceil(rect.1);
         thread::scope(|s| {
             let get_parameters = |index: usize| {
@@ -195,7 +195,7 @@ impl Camera {
             if depth >= limit {
                 return Color::black();
             }
-            if let Some(hit_record) = world.hit(ray, 0.000001..f64::INFINITY) {
+            if let Some(hit_record) = world.hit(ray, &(0.000001..f64::INFINITY)) {
                 if let Some((attenuation, scattered)) =
                     hit_record.material.scatter(rng, ray, &hit_record)
                 {

@@ -144,7 +144,7 @@ pub fn book_cover(camera_builder: CameraBuilder) -> Scene<Box<dyn Hittable>> {
         1.0,
         Arc::new(Metal::new(Color::new(0.8, 0.8, 0.8), 0.0)),
     )));
-    return Scene { camera, world };
+    return Scene { camera, world: world.into_bvh() };
 }
 
 fn ordered() -> Box<HittableList> {
