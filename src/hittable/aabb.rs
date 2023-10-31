@@ -5,7 +5,7 @@ use std::{
 
 use crate::{ray::Ray, vec3::Vec3, range::Expandable};
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct AABB {
     pub x: Range<f64>,
     pub y: Range<f64>,

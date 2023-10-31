@@ -120,11 +120,13 @@ pub fn book_cover(camera_builder: CameraBuilder) -> Scene<Box<dyn Hittable>> {
                     // glass
                     Arc::new(Dielectric::new(1.5))
                 };
-                //world.add(Box::new(Sphere::new(center, 0.2, sphere_material)));
-                world.add(Box::new(MovingSphere::new(
-                    Sphere::new(center, 0.2, sphere_material),
-                    center + Point3::new(0.0, 0.5 * (1. - choose_mat), 0.0),
-                )));
+                world.add(Box::new(Sphere::new(center, 0.2, sphere_material)));
+                // world.add(Box::new(MovingSphere::new(
+                //     Sphere::new(center, 0.2, sphere_material),
+                //     center + Point3::new(0.0, 0.5
+                //                          //* (1. - choose_mat)
+                //                          , 0.0),
+                // )));
             }
         }
     }

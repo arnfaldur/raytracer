@@ -30,3 +30,13 @@ impl Expandable<f64> for Range<f64> {
         self.start.min(other.start)..self.end.max(other.end)
     }
 }
+
+pub trait RangeExtensions<T> {
+    fn middle(&self) -> T;
+}
+
+impl RangeExtensions<f64> for Range<f64> {
+    fn middle(&self) -> f64 {
+        (self.start + self.end) / 2.
+    }
+}

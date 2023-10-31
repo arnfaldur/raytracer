@@ -44,8 +44,12 @@ fn main() {
             ui::sdl_thread(image_spec.width, image_spec.height, receiver);
         });
         s.spawn(move || {
+            let start_time = Instant::now();
+
             let scene = book_cover(camera);
             render_thread(scene, sender);
+            let elapsed = start_time.elapsed().as_secs_f64();
+            println!("Done in {:.3} seconds", elapsed);
         });
     });
 }
@@ -54,12 +58,7 @@ fn render_thread(
     scene: Scene<Box<dyn Hittable>>,
     sender: SyncSender<((usize, usize), (usize, usize), Vec<Color>)>,
 ) {
-    let start_time = Instant::now();
-
     scene.render(sender);
-
-    let elapsed = start_time.elapsed().as_secs_f64();
-    println!("Done in {:.3} seconds", elapsed);
 }
 
 extern crate test;

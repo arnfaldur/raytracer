@@ -6,8 +6,10 @@ use crate::vec3::Vec3;
 use std::{
     ops::{Neg, Range},
     sync::Arc,
+    fmt::Debug,
 };
 
+#[derive(Debug)]
 pub struct Lambertian {
     pub(crate) albedo: Color,
 }
@@ -18,7 +20,7 @@ impl Lambertian {
     }
 }
 
-pub trait Material: Sync + Send {
+pub trait Material: Sync + Send + Debug {
     fn scatter(&self, rng: &mut Rng, ray: &Ray, hit_record: &HitRecord)
         -> Option<(Color, Ray)>;
 }
@@ -47,6 +49,7 @@ impl From<Color> for Lambertian {
     }
 }
 
+#[derive(Debug)]
 pub struct Metal {
     pub(crate) albedo: Color,
     pub(crate) fuzz: f64,
@@ -81,6 +84,7 @@ impl From<Color> for Metal {
     }
 }
 
+#[derive(Debug)]
 pub struct Dielectric {
     pub(crate) index_of_refraction: f64,
 }
