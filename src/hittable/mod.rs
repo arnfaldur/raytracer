@@ -148,8 +148,7 @@ impl HittableList {
         self.objects.push(object);
     }
     pub fn into_bvh(mut self) -> Box<dyn Hittable> {
-        let mut rng = Rng::new();
-        return BVHNode::from_vec(&mut self.objects, 0, &mut rng, 0);
+        return BVHNode::from_vec(&mut self.objects);
     }
 }
 
@@ -180,42 +179,32 @@ pub struct BVHNode {
 }
 
 impl BVHNode {
-    fn from_vec(
+    fn from_vec(mut objects: &mut Vec<Box<dyn Hittable>>) -> Box<dyn Hittable> {
+        return BVHNode::inner_from_vec(objects, 0, 0);
+    }
+    fn inner_from_vec(
         mut objects: &mut Vec<Box<dyn Hittable>>,
         start: usize,
-        rng: &mut Rng,
         depth: usize,
     ) -> Box<dyn Hittable> {
         let length = objects.len() - start;
         let axis = depth % 3;
 
-        let result = if length == 1 {
+        return if length == 1 {
             //println!("{}node", " ".repeat(depth));
             objects.pop().unwrap()
         } else if length == 2 {
-            let comparator = |a: &_, b: &_| BVHNode::box_compare(a, b, axis);
             let left = objects.pop().unwrap();
             let right = objects.pop().unwrap();
             let bounding_box = AABB::from_boxes(left.bounding_box(), right.bounding_box());
-            let left_lt_right = comparator(&left, &right).is_lt();
-            let node = if left_lt_right {
-                BVHNode {
-                    left,
-                    right,
-                    bounding_box,
-                }
-            } else {
-                BVHNode {
-                    left: right,
-                    right: left,
-                    bounding_box,
-                }
-            };
             //println!("{}node", " ".repeat(depth + 1));
             //println!("{}node", " ".repeat(depth + 1));
-            Box::new(node)
+            Box::new(BVHNode {
+                left,
+                right,
+                bounding_box,
+            })
         } else {
-
             let comparator = |a: &_, b: &_| BVHNode::box_compare(a, b, axis);
             let mean = objects
                 .split_at(start)
@@ -228,7 +217,6 @@ impl BVHNode {
             // sort the end of the vec from `start` to the end
             objects.split_at_mut(start).1.sort_by(comparator);
 
-            let split = length / 2;
             let split = objects
                 .split_at(start)
                 .1
@@ -239,9 +227,9 @@ impl BVHNode {
                 .max(1);
 
             // take the part after the split and recurse. All elements in the part will be popped.
-            let right = BVHNode::from_vec(objects, start + split, rng, depth + 1);
+            let right = BVHNode::inner_from_vec(objects, start + split, depth + 1);
             // take the whole part which only includes the part before the split as the rest was popped.
-            let left = BVHNode::from_vec(objects, start, rng, depth + 1);
+            let left = BVHNode::inner_from_vec(objects, start, depth + 1);
             let bounding_box = AABB::from_boxes(left.bounding_box(), right.bounding_box());
             Box::new(BVHNode {
                 left,
@@ -249,7 +237,6 @@ impl BVHNode {
                 bounding_box,
             })
         };
-        return result;
     }
 
     fn box_compare(a: &Box<dyn Hittable>, b: &Box<dyn Hittable>, axis_index: usize) -> Ordering {
