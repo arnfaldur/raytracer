@@ -149,9 +149,7 @@ impl HittableList {
     }
     pub fn into_bvh(mut self) -> Box<dyn Hittable> {
         let mut rng = Rng::new();
-        rng.short_jump();
-        rng.short_jump();
-        return BVHNode::from_vec(&mut self.objects, 0, &mut rng);
+        return BVHNode::from_vec(&mut self.objects, 0, &mut rng, 0);
     }
 }
 
@@ -186,11 +184,13 @@ impl BVHNode {
         mut objects: &mut Vec<Box<dyn Hittable>>,
         start: usize,
         rng: &mut Rng,
+        depth: usize,
     ) -> Box<dyn Hittable> {
         let length = objects.len() - start;
-        let axis = ((rng.next_f64() * 3.0) as usize).min(2);
+        let axis = depth % 3;
 
         let result = if length == 1 {
+            //println!("{}node", " ".repeat(depth));
             objects.pop().unwrap()
         } else if length == 2 {
             let comparator = |a: &_, b: &_| BVHNode::box_compare(a, b, axis);
@@ -198,10 +198,6 @@ impl BVHNode {
             let right = objects.pop().unwrap();
             let bounding_box = AABB::from_boxes(left.bounding_box(), right.bounding_box());
             let left_lt_right = comparator(&left, &right).is_lt();
-            // dbg!(axis);
-            // dbg!(left_lt_right);
-            // dbg!(&left);
-            // dbg!(&right);
             let node = if left_lt_right {
                 BVHNode {
                     left,
@@ -215,72 +211,12 @@ impl BVHNode {
                     bounding_box,
                 }
             };
-            // let node = BVHNode {
-            //     left: left_lt_right.then_some(t),
-            //     right,
-            //     bounding_box,
-            // };
+            //println!("{}node", " ".repeat(depth + 1));
+            //println!("{}node", " ".repeat(depth + 1));
             Box::new(node)
         } else {
-            let axis = {
-                let mut result = 0;
-                let mut max_variance = NEG_INFINITY;
-                for i in 0..3 {
-                    let variance = (objects
-                        .split_at(start)
-                        .1
-                        .iter()
-                        .map(|x| x.bounding_box().axis(i).middle().powi(2))
-                        .sum::<f64>()
-                        - (objects
-                            .split_at(start)
-                            .1
-                            .iter()
-                            .map(|x| x.bounding_box().axis(i).middle())
-                            .sum::<f64>()
-                            .powi(2)
-                            / length as f64))
-                        / length as f64;
-                    if variance > max_variance {
-                        result = i;
-                        max_variance = variance;
-                    }
-                }
-                result
-            };
-
-            // let axis = {
-            //     let mut result = 0;
-            //     let mut most_diff = NEG_INFINITY;
-            //     for i in 0..3 {
-            //         let max = objects
-            //             .split_at(start)
-            //             .1
-            //             .iter()
-            //             .map(|o| o.bounding_box().axis(i).start)
-            //             .max_by(|a, b| a.partial_cmp(b).unwrap())
-            //             .unwrap();
-            //         let min = objects
-            //             .split_at(start)
-            //             .1
-            //             .iter()
-            //             .map(|o| o.bounding_box().axis(i).start)
-            //             .min_by(|a, b| a.partial_cmp(b).unwrap())
-            //             .unwrap();
-            //         if (max - min).abs() > most_diff {
-            //             result = i;
-            //             most_diff = (max - min).abs();
-            //         }
-            //     }
-            //     result
-            // };
 
             let comparator = |a: &_, b: &_| BVHNode::box_compare(a, b, axis);
-
-            // sort the end of the vec from `start` to the end
-            objects.split_at_mut(start).1.sort_by(comparator);
-
-            let split = length / 2;
             let mean = objects
                 .split_at(start)
                 .1
@@ -288,20 +224,24 @@ impl BVHNode {
                 .map(|o| o.bounding_box().axis(axis).middle())
                 .sum::<f64>()
                 / length as f64;
+
+            // sort the end of the vec from `start` to the end
+            objects.split_at_mut(start).1.sort_by(comparator);
+
+            let split = length / 2;
             let split = objects
                 .split_at(start)
                 .1
                 .iter()
                 .map(|o| o.bounding_box().axis(axis).middle())
-                .rposition(|x| x <= mean)
-                //.map(|x| x - 1)
+                .position(|x| x >= mean)
                 .unwrap_or(length / 2)
                 .max(1);
 
             // take the part after the split and recurse. All elements in the part will be popped.
-            let right = BVHNode::from_vec(objects, start + split, rng);
+            let right = BVHNode::from_vec(objects, start + split, rng, depth + 1);
             // take the whole part which only includes the part before the split as the rest was popped.
-            let left = BVHNode::from_vec(objects, start, rng);
+            let left = BVHNode::from_vec(objects, start, rng, depth + 1);
             let bounding_box = AABB::from_boxes(left.bounding_box(), right.bounding_box());
             Box::new(BVHNode {
                 left,
@@ -312,9 +252,6 @@ impl BVHNode {
         return result;
     }
 
-    // fn box_compare(axis_index: usize) -> dyn Fn(dyn Hittable,  dyn Hittable) -> Ordering {
-    //     |a: dyn Hittable, b: dyn Hittable| a.bounding_box().axis(axis_index).start.total_cmp(&b.bounding_box().axis(axis_index).end)
-    // }
     fn box_compare(a: &Box<dyn Hittable>, b: &Box<dyn Hittable>, axis_index: usize) -> Ordering {
         let a_bound = a.bounding_box().axis(axis_index);
         let b_bound = b.bounding_box().axis(axis_index);
