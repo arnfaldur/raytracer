@@ -266,10 +266,10 @@ pub fn something_blocky(camera_builder: CameraBuilder) -> Scene<Box<dyn Hittable
         .lookat(Point3::new(0.0, 0.0, 0.0))
         .build();
     let mut world = Box::new(HittableList::default());
-    let checker_texture: Arc<dyn Texture> = Arc::new(NoiseTexture::new(
-        0.3,
+    let noise_texture: Arc<dyn Texture> = Arc::new(NoiseTexture::new(
+        0.2,
     ));
-    let material = Arc::new(Lambertian::from(checker_texture.clone()));
+    let material = Arc::new(Lambertian::from(noise_texture.clone()));
     world.add(Box::new(Sphere::new(
         Point3::new(0.0, -1000.0, 0.0),
         1000.0,

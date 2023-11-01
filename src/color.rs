@@ -59,6 +59,9 @@ impl Color {
         let correct = |val: f64| val.powf(1.0 / gamma);
         Self::new(correct(self.r), correct(self.g), correct(self.b))
     }
+    pub fn blend(&self, rhs: &Self, t: Value) -> Self {
+        (1.0 - t) * *self + t * *rhs
+    }
     pub fn random(rng: &mut Rng) -> Self {
         Self::new(rng.next_f64(), rng.next_f64(), rng.next_f64())
     }

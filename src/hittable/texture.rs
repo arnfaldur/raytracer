@@ -1,6 +1,7 @@
 use std::{
     fmt::Debug,
     ops::{Div, Rem, Shl},
+    result,
 };
 
 use image::{ImageBuffer, RgbaImage};
@@ -102,20 +103,48 @@ impl NoiseTexture {
 
 impl Texture for NoiseTexture {
     fn value(&self, _u: f64, _v: f64, point: &Point3) -> Color {
-        // let x = (point.x * self.inv_scale).floor() as i32;
-        // let y = (point.y * self.inv_scale).floor() as i32;
-        // let z = (point.z * self.inv_scale).floor() as i32;
-        // let a = x as u64;
-        // let b = (y as u64).wrapping_add((z as u64).wrapping_shl(32));
-        // let mut rng = Rng::from_seed([a, b]);
-        // rng.short_jump();
-        let x = (point.x * self.inv_scale).floor() as i32;
-        let y = (point.y * self.inv_scale).floor() as i32;
-        let z = (point.z * self.inv_scale).floor() as i32;
-        let a = x as u64;
-        let b = (y as u64).wrapping_add((z as u64).wrapping_shl(32));
-        let mut rng = Rng::from_seed([a, b]);
-        rng.short_jump();
-        Color::gray(rng.next_f64())
+        let x = point.x * self.inv_scale;
+        let y = point.y * self.inv_scale;
+        let z = point.z * self.inv_scale;
+        let ix = x.floor() as i32;
+        let iy = y.floor() as i32;
+        let iz = z.floor() as i32;
+
+        let linear_to_piecewise_quadratic = |x: f64| {
+            if x < 0.5 {
+                2. * x.powi(2)
+            } else {
+                1.0 - 2.0 * (x - 1.0).powi(2)
+            }
+        };
+        let linear_to_hermite_cubic = |x: f64| x.powi(2) * (3.0 - 2.0 * x);
+
+        let x_blend = linear_to_hermite_cubic(x.rem_euclid(1.0));
+        let y_blend = linear_to_hermite_cubic(y.rem_euclid(1.0));
+        let z_blend = linear_to_hermite_cubic(z.rem_euclid(1.0));
+
+        let m00 =
+            noise_at(ix + 0, iy + 0, iz + 0).blend(&noise_at(ix + 1, iy + 0, iz + 0), x_blend);
+        let m01 =
+            noise_at(ix + 0, iy + 0, iz + 1).blend(&noise_at(ix + 1, iy + 0, iz + 1), x_blend);
+        let m10 =
+            noise_at(ix + 0, iy + 1, iz + 0).blend(&noise_at(ix + 1, iy + 1, iz + 0), x_blend);
+        let m11 =
+            noise_at(ix + 0, iy + 1, iz + 1).blend(&noise_at(ix + 1, iy + 1, iz + 1), x_blend);
+
+        let o0 = m00.blend(&m10, y_blend);
+        let o1 = m01.blend(&m11, y_blend);
+
+        let result = o0.blend(&o1, z_blend);
+
+        result
     }
+}
+
+fn noise_at(x: i32, y: i32, z: i32) -> Color {
+    let a = x as u64;
+    let b = (y as u64).wrapping_add((z as u64).wrapping_shl(32));
+    let mut rng = Rng::from_seed([a, b]);
+    rng.short_jump();
+    Color::gray(rng.next_f64())
 }
