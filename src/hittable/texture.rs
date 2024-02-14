@@ -6,7 +6,11 @@ use std::{
 
 use image::{ImageBuffer, RgbaImage};
 
-use crate::{color::Color, random::Rng, vec3::Point3};
+use crate::{
+    color::Color,
+    random::Rng,
+    vec3::{Point3, Vec3},
+};
 
 pub trait Texture: Send + Sync + Debug {
     fn value(&self, u: f64, v: f64, point: &Point3) -> Color;
@@ -123,14 +127,14 @@ impl Texture for NoiseTexture {
         let y_blend = linear_to_hermite_cubic(y.rem_euclid(1.0));
         let z_blend = linear_to_hermite_cubic(z.rem_euclid(1.0));
 
-        let m00 =
-            noise_at(ix + 0, iy + 0, iz + 0).blend(&noise_at(ix + 1, iy + 0, iz + 0), x_blend);
-        let m01 =
-            noise_at(ix + 0, iy + 0, iz + 1).blend(&noise_at(ix + 1, iy + 0, iz + 1), x_blend);
-        let m10 =
-            noise_at(ix + 0, iy + 1, iz + 0).blend(&noise_at(ix + 1, iy + 1, iz + 0), x_blend);
-        let m11 =
-            noise_at(ix + 0, iy + 1, iz + 1).blend(&noise_at(ix + 1, iy + 1, iz + 1), x_blend);
+        let m00 = random_vec_at(ix + 0, iy + 0, iz + 0)
+            .blend(&random_vec_at(ix + 1, iy + 0, iz + 0), x_blend);
+        let m01 = random_vec_at(ix + 0, iy + 0, iz + 1)
+            .blend(&random_vec_at(ix + 1, iy + 0, iz + 1), x_blend);
+        let m10 = random_vec_at(ix + 0, iy + 1, iz + 0)
+            .blend(&random_vec_at(ix + 1, iy + 1, iz + 0), x_blend);
+        let m11 = random_vec_at(ix + 0, iy + 1, iz + 1)
+            .blend(&random_vec_at(ix + 1, iy + 1, iz + 1), x_blend);
 
         let o0 = m00.blend(&m10, y_blend);
         let o1 = m01.blend(&m11, y_blend);
@@ -147,4 +151,12 @@ fn noise_at(x: i32, y: i32, z: i32) -> Color {
     let mut rng = Rng::from_seed([a, b]);
     rng.short_jump();
     Color::gray(rng.next_f64())
+}
+
+fn random_vec_at(x: i32, y: i32, z: i32) -> Vec3 {
+    let a = x as u64;
+    let b = (y as u64).wrapping_add((z as u64).wrapping_shl(32));
+    let mut rng = Rng::from_seed([a, b]);
+    rng.short_jump();
+    Vec3::random_on_unit_sphere(&mut rng)
 }
